@@ -24,6 +24,8 @@ import Data.Char (isSpace, isAlpha, isDigit)
     '<'            { TokenLess }
     '>'            { TokenGreater }
     '='            { TokenEqual }
+    true            { TokenTrue }
+    false            { TokenFalse }
     and            { TokenAnd }
     or             { TokenOr }
     var            { TokenVar $$ }
@@ -32,8 +34,10 @@ import Data.Char (isSpace, isAlpha, isDigit)
 %%
 
 
-Exp : Var {Varexp $1}
-    | int { Int $1}
+Exp : true { Bool True }
+    | false { Bool False }
+    | Var { Varexp $1 }
+    | int { Int $1 }
     | prim { $1 }
     | '(' let '(' bindings ')' Exp ')' { Let $4 $6 }
     | '(' if Exp Exp Exp ')' { If $3 $4 $5 }
@@ -73,7 +77,8 @@ parseError :: [Token] -> a
 parseError _ = error "Parse error"
   
 data Exp =
-      Varexp Var
+      Bool Bool
+    | Varexp Var
     | Int Int
     | Prim Operator Exp Exp
     | Let [Binding] Exp
@@ -113,6 +118,8 @@ data Token =
     | TokenLess
     | TokenGreater
     | TokenEqual
+    | TokenTrue
+    | TokenFalse
     | TokenAnd
     | TokenOr
     | TokenInt Int
@@ -151,6 +158,8 @@ lexVar cs =
     ("macro", rest)  -> TokenMacro : lexer rest
     ("and", rest)    -> TokenAnd : lexer rest
     ("or", rest)     -> TokenOr : lexer rest
+    ("true", rest)    -> TokenTrue : lexer rest
+    ("false", rest)    -> TokenFalse : lexer rest
     (var, rest)      -> TokenVar var : lexer rest
 
 main = getContents >>= print . toAst . lexer
