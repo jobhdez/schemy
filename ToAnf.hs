@@ -52,7 +52,6 @@ toanf'' op n (x:xs) =
                desugar
                (Let [Binding (Varexp (Var tmp)) (If cnd' (toanf' thn' n) (toanf' els' n))] (Application (op : exps)))
                  
-                 
            Prim op' e e2 ->
              let exps = (map (\x -> toanf' x n) xs) in
                desugar
