@@ -2,12 +2,18 @@ module ToAnf where
 
 import Parser
     ( Binding(Binding),
-      Exp(Application, Let, Prim, If, Varexp, Bool),
+      Exp(Application, Let, Prim, If, Varexp, Bool, DefineProc),
       Var(Var),
       lexer,
       toAst )
-import Desugar ( desugar )
+import Desugar ( desugar, desugar' )
 
+toAnf :: [Exp] -> [Exp]
+toAnf (x:xs) =
+  toanf x : rest
+  where
+    rest = toAnf xs
+    
 toanf :: Exp -> Exp
 toanf exp =
   toanf' exp 0
@@ -17,7 +23,7 @@ toanf' :: Exp -> Int ->  Exp
 
 toanf' (If (Prim op e e2) thn els) n =
   let tmp = "tmp_" ++ show n in
-    desugar(Let [Binding (Varexp (Var tmp)) (Prim op e e2)] (If (Varexp (Var tmp)) (toanf thn) (toanf els)))
+    desugar' (Let [Binding (Varexp (Var tmp)) (Prim op e e2)] (If (Varexp (Var tmp)) (toanf thn) (toanf els)))
 
 toanf' (If cnd thn els) n =
   case cnd of
@@ -26,12 +32,14 @@ toanf' (If cnd thn els) n =
         let tmp2 = "tmp_" ++ show (n + 1) in
           case cnd' of
             Bool cnd'' ->
-              desugar (Let [Binding (Varexp (Var tmp)) (If cnd' (toanf' thn' n) (toanf' els' n))] (If (Varexp (Var tmp)) (toanf' thn n) (toanf' els n)))
+              desugar' (Let [Binding (Varexp (Var tmp)) (If cnd' (toanf' thn' n) (toanf' els' n))] (If (Varexp (Var tmp)) (toanf' thn n) (toanf' els n)))
             Prim op e e2 ->
-              desugar (Let [Binding (Varexp (Var tmp)) (Prim op e e2)] (Let [Binding (Varexp (Var tmp2)) (If (Varexp (Var tmp)) (toanf' thn' n) (toanf' els' n))] (If (Varexp (Var tmp2)) (toanf' thn n) (toanf' els n))))
+              desugar' (Let [Binding (Varexp (Var tmp)) (Prim op e e2)] (Let [Binding (Varexp (Var tmp2)) (If (Varexp (Var tmp)) (toanf' thn' n) (toanf' els' n))] (If (Varexp (Var tmp2)) (toanf' thn n) (toanf' els n))))
             _  -> toanf' cnd' n
          
-
+toanf' (DefineProc var params exp) n =
+  DefineProc var params (desugar' (toanf' exp n))
+  
 toanf' (Application exps) n =
   let op = head exps in
     let (x:xs) = tail exps in
@@ -49,12 +57,12 @@ toanf'' op n (x:xs) =
       in case cnd' of
            Bool cnd'' ->
              let exps = (map (\x -> toanf' x n) xs) in
-               desugar
+               desugar'
                (Let [Binding (Varexp (Var tmp)) (If cnd' (toanf' thn' n) (toanf' els' n))] (Application (op : exps)))
                  
            Prim op' e e2 ->
              let exps = (map (\x -> toanf' x n) xs) in
-               desugar
+               desugar'
                (Let [ Binding (Varexp (Var tmp)) (Prim op' e e2)] (Let [Binding (Varexp (Var tmp2)) (If (Varexp (Var tmp)) (toanf' thn' n) (toanf' els' n))] (Application (op : exps))))
            _ -> toanf'' op (n + 1) xs
     _ ->
