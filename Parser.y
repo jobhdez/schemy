@@ -30,9 +30,11 @@ import Data.Char (isSpace, isAlpha, isDigit)
     or             { TokenOr }
     var            { TokenVar $$ }
     int            { TokenInt $$ }
+    define         { TokenDefine }
 
 %%
 
+Program : Exps { $1 }
 
 Exp : true { Bool True }
     | false { Bool False }
@@ -47,12 +49,13 @@ Exp : true { Bool True }
     | '(' lambda '(' params ')' Exp ')' { Lambda $4 $6 }
     | '(' letrec '(' bindings ')' Exp ')' { Letrec $4 $6 }
     | '(' macro Exp Exp ')' { SchemeMacro $3 $4 }
+    | '(' define '(' Var params ')' Exp ')' { DefineProc $4 $5 $7 }
     | '(' Exps ')' { Application $2 }
 
 Var : var { Var $1 }
 
 Exps : Exp { [$1] }
-     | Exps Exp { $1 ++ [$2] }
+     | Exp Exps { $1 : $2 }
 
 prim : '(' '+' Exp Exp ')' { Prim Plus $3 $4 }
      | '(' '-' Exp Exp ')' { Prim Minus $3 $4 }
@@ -87,11 +90,14 @@ data Exp =
     | Set Exp Exp
     | Begin [Exp]
     | Quote Exp
+    | DefineProc Var [Var] Exp
     | Lambda [Var] Exp
     | SchemeMacro Exp Exp
     | Application [Exp]
     deriving Show
 
+data Exps = Exps [Exp]
+  
 data Binding = Binding Exp Exp
     deriving Show
 
@@ -100,7 +106,7 @@ data Operator = Plus | Minus | And | Or | Less | Greater | Equal
     deriving Show
 
 data Var = Var String
-  deriving Show
+  deriving (Show, Eq, Ord)
   
 data Token =
       TokenLet
@@ -111,6 +117,7 @@ data Token =
     | TokenLetrec
     | TokenBegin
     | TokenMacro
+    | TokenDefine
     | TokenLParen
     | TokenRParen
     | TokenPlus
@@ -160,6 +167,7 @@ lexVar cs =
     ("or", rest)     -> TokenOr : lexer rest
     ("true", rest)    -> TokenTrue : lexer rest
     ("false", rest)    -> TokenFalse : lexer rest
+    ("define", rest)   -> TokenDefine : lexer rest 
     (var, rest)      -> TokenVar var : lexer rest
 
 main = getContents >>= print . toAst . lexer
