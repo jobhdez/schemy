@@ -59,7 +59,7 @@ closure' (Application (x:xs)) env n =
       else Application (x : xs)
     _ -> Application (x : xs)
 
-closure' exp _ _ = exp -- Catch-all case for unsupported expressions
+closure' exp _ _ = exp 
 
 makeClosure'Exp :: Exp -> [Var] -> Var -> Exp
 makeClosure'Exp exp [] _ = exp
