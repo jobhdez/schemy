@@ -31,7 +31,7 @@ import Data.Char (isSpace, isAlpha, isDigit)
     var            { TokenVar $$ }
     int            { TokenInt $$ }
     define         { TokenDefine }
-
+    closure        { TokenClosure }
 %%
 
 Program : Exps { $1 }
@@ -50,7 +50,9 @@ Exp : true { Bool True }
     | '(' letrec '(' bindings ')' Exp ')' { Letrec $4 $6 }
     | '(' macro Exp Exp ')' { SchemeMacro $3 $4 }
     | '(' define '(' Var params ')' Exp ')' { DefineProc $4 $5 $7 }
+    |  '(' closure Exp Exp Exp params ')' { Closure $3 $4 $5 $6 }
     | '(' Exps ')' { Application $2 }
+
 
 Var : var { Var $1 }
 
@@ -76,6 +78,7 @@ params : Var { [$1] }
        | params Var { $1 ++ [$2] }
 
 {
+
 parseError :: [Token] -> a
 parseError _ = error "Parse error"
   
@@ -90,6 +93,7 @@ data Exp =
     | Set Exp Exp
     | Begin [Exp]
     | Quote Exp
+    | Closure Exp Exp Exp [Var]
     | DefineProc Var [Var] Exp
     | Lambda [Var] Exp
     | SchemeMacro Exp Exp
@@ -128,6 +132,7 @@ data Token =
     | TokenTrue
     | TokenFalse
     | TokenAnd
+    | TokenClosure
     | TokenOr
     | TokenInt Int
     | TokenVar String
@@ -167,7 +172,8 @@ lexVar cs =
     ("or", rest)     -> TokenOr : lexer rest
     ("true", rest)    -> TokenTrue : lexer rest
     ("false", rest)    -> TokenFalse : lexer rest
-    ("define", rest)   -> TokenDefine : lexer rest 
+    ("define", rest)   -> TokenDefine : lexer rest
+    ("closure", rest)   -> TokenClosure : lexer rest
     (var, rest)      -> TokenVar var : lexer rest
 
 main = getContents >>= print . toAst . lexer
