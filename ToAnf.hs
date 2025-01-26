@@ -67,5 +67,5 @@ toanf'' op n (x:xs) =
                (Let [ Binding (Varexp (Var tmp)) (Prim op' e e2)] (Let [Binding (Varexp (Var tmp2)) (If (Varexp (Var tmp)) (toanf' thn' n) (toanf' els' n))] (Application (op : exps))))
            _ -> toanf'' op (n + 1) xs
     _ ->
-      let exps = (map (\x -> toanf' x n) xs) in
+      let exps = (map (\x -> toanf' x n) (x:xs)) in
         Application ([op] ++ exps)
