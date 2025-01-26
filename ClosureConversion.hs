@@ -10,16 +10,14 @@ import Desugar (desugar)
 import ToAnf (toanf, toAnf)
 import qualified Data.Map as Map
 
-data Env = Env { envMap :: Map.Map Var [Var] } deriving (Show, Eq)
-
 data ClosureEnv = ClosureEnv { 
-  fnEnv :: Map.Map Var [Var], 
-  lambdaEnv :: Map.Map Var Var 
+  fvEnv :: Map.Map Var [Var],
+  lambdaEnv :: Map.Map Var Exp
 } deriving (Eq)
 
 instance Show ClosureEnv where
-  show (ClosureEnv fnEnv lambdaEnv) =
-    "fnEnv: " ++ show fnEnv ++ ", lambdaEnv: " ++ show lambdaEnv
+  show (ClosureEnv fvEnv lambdaEnv) =
+    "fnEnv: " ++ show fvEnv ++ ", lambdaEnv: " ++ show lambdaEnv
 
 closure :: [Exp] -> ClosureEnv -> ([Exp], ClosureEnv)
 closure [] env = ([], env)
@@ -37,28 +35,27 @@ closure' (DefineProc var params exp) env n =
       case op of
         Lambda var' (Lambda var'' exp') ->
           let (clsr, env') = closure' op env n
-              (exps, env'') = closure xs env'
-              closuree = Closure
+              ---(exps, env'') = closure xs env'
+              fvs = freeVariables var'' exp'
+              --lamvars = getLamVars (head clsr)
+              freeName = "fvs_" ++ show n
+              freevars = Map.insert (Var freeName) fvs (fvEnv env')
+             -- lambName = "lambda_" ++ show n
+              {--closuree = Closure
                           (Int (length (getLamVars (head clsr))))
                           (Varexp (Var ("lamb_" ++ show n)))
                           (Int (length (getLamVars (head clsr))))
-                          (freeVariables var'' exp')
-              def = [(DefineProc var params closuree)] ++ clsr
-              app = [Application ([Varexp var] ++ exps)]
-          in (def ++ app, env'')
+                          fvs--}
+              lambName = getClosureName (head clsr)
+              lamenv = lambdaEnv env'
+              --lamEnv = Map.insert (Var lambName) lambdaexp (lambdaEnv env')
+              def = clsr
+              (exps, env''') = closure xs (ClosureEnv { fvEnv = Map.empty, lambdaEnv = Map.empty })
+              ops = [Varexp (Var "tupleref"), (Varexp lambName), Int 0] ++ exps
+              app = (Application ops)
+          in (def ++ [app], ClosureEnv {fvEnv = freevars, lambdaEnv = lamenv})
         _ ->
           closure' (Application (op:xs)) env n
-      
-    _ ->
-      let lamName = Var ("lambda_" ++ show n)
-      in if Map.member var (fnEnv env)
-         then closure' exp env n
-         else
-           let fnEnv' = Map.insert var params (fnEnv env)
-               lambdaEnv' = Map.insert lamName lamName (lambdaEnv env)
-               env' = ClosureEnv { fnEnv = fnEnv', lambdaEnv = lambdaEnv' }
-           in let (exp', env'') = closure' exp env' n
-              in (exp', env'')
 
 closure' (Lambda vars exp) env n =
   case exp of
@@ -66,18 +63,21 @@ closure' (Lambda vars exp) env n =
       let (e, v) = closure' (Lambda vars' exp') env n in
         let defExp = getDefExp (head e) in
           let vars'' = getDefVars (head e) in
-            ([(Lambda vars'' defExp)], v)
+            let fvs = freeVariables vars' exp' in
+              let fvsEnv' = Map.insert (Var ("fvs_" ++ show n)) fvs (fvEnv v) in
+                let lamEnv' = Map.insert (Var ("lamb_" ++ show n)) (Lambda vars' exp') (lambdaEnv v) in
+                  ([DefineProc (Var ("lamb_" ++ show n)) ([Var ("fvs_" ++ show n)] ++ vars) (Closure (Int (length vars')) (Varexp (Var ("lamb_" ++ show (n+1)))) (Int (length vars'')) fvs), (DefineProc (Var ("lamb_" ++ (show (n+1)))) ([Var ("fvs_" ++ show n)] ++ vars') (makeClosure'Exp exp' fvs (Var ("fvs_" ++ show n))))], (ClosureEnv { fvEnv = fvsEnv', lambdaEnv = lamEnv' }))
     _ ->
       let freeVars = freeVariables vars exp
-          lamName = Var ("lambda_" ++ show n)
-          tupName = Var ("tup_" ++ show n)
-          fnEnv' = Map.insert tupName freeVars (fnEnv env)
-          lambdaEnv' = Map.insert lamName lamName (lambdaEnv env)
-          exp' = makeClosure'Exp exp freeVars tupName
-          env' = ClosureEnv { fnEnv = fnEnv', lambdaEnv = lambdaEnv' }
+          lamName = ("lambda_" ++ show n)
+          fvName = Var ("fv_" ++ show n)
+          fvEnv' = Map.insert fvName freeVars (fvEnv env)
+          lambdaEnv' = Map.insert (Var lamName) (Lambda vars exp) (lambdaEnv env)
+          exp' = makeClosure'Exp exp freeVars fvName
+          clsr = Closure (Int (length vars)) (Varexp (Var ("lamb_" ++ show n))) (Int (length vars)) freeVars
       in
-        let (exp'', env'') = closure' exp' env' n
-        in ([DefineProc lamName vars (head exp'')],  env'')
+        ([DefineProc (Var lamName) ([fvName] ++ vars) (makeClosure'Exp exp freeVars fvName)], ClosureEnv { fvEnv = fvEnv', lambdaEnv = lambdaEnv' })
+       
 
 closure' (If cnd thn els) env n =
   let (cnd', env') = closure' cnd env n
@@ -92,7 +92,7 @@ closure' (Set var e) env n =
 closure' (Application (x:xs)) env n =
   case x of
     Varexp op ->
-      if Map.member op (fnEnv env)
+      if Map.member op (fvEnv env)
       then
         let tupName = Var ("tup_" ++ show n)
             tup = Application (Varexp (Var "tuple") : xs)
@@ -147,3 +147,7 @@ getLamVars (Lambda vars exp) = vars
 
 getLamExp :: Exp -> Exp
 getLamExp (Lambda vars exp) = exp
+
+getClosureName :: Exp -> Var
+getClosureName (DefineProc var vars (Closure n (Varexp (Var v)) n2 fvs)) =
+  Var v
