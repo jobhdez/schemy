@@ -19,6 +19,10 @@ instance Show ClosureEnv where
   show (ClosureEnv fvEnv lambdaEnv) =
     "fnEnv: " ++ show fvEnv ++ ", lambdaEnv: " ++ show lambdaEnv
 
+closureConversion :: [Exp] -> ([Exp], ClosureEnv)
+closureConversion exps =
+  closure exps (ClosureEnv { fvEnv = Map.empty, lambdaEnv = Map.empty })
+  
 closure :: [Exp] -> ClosureEnv -> ([Exp], ClosureEnv)
 closure [] env = ([], env)
 closure (x:xs) env =
