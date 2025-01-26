@@ -9,6 +9,7 @@ import Parser
 import Desugar ( desugar, desugar' )
 
 toAnf :: [Exp] -> [Exp]
+toAnf [] = []
 toAnf (x:xs) =
   toanf x : rest
   where
