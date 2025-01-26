@@ -572,16 +572,16 @@ data Exp =
     | Lambda [Var] Exp
     | SchemeMacro Exp Exp
     | Application [Exp]
-    deriving Show
+  deriving (Show, Eq)
 
 data Exps = Exps [Exp]
   
 data Binding = Binding Exp Exp
-    deriving Show
+  deriving (Show, Eq)
 
   
 data Operator = Plus | Minus | And | Or | Less | Greater | Equal
-    deriving Show
+  deriving (Show, Eq)
 
 data Var = Var String
   deriving (Show, Eq, Ord)
