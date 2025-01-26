@@ -7,7 +7,7 @@ import Parser (
    lexer,
    toAst)
 import Desugar (desugar)
-import ToAnf (toanf)
+import ToAnf (toanf, toAnf)
 import qualified Data.Map as Map
 
 data Env = Env { envMap :: Map.Map Var [Var] } deriving (Show, Eq)
@@ -15,38 +15,62 @@ data Env = Env { envMap :: Map.Map Var [Var] } deriving (Show, Eq)
 data ClosureEnv = ClosureEnv { 
   fnEnv :: Map.Map Var [Var], 
   lambdaEnv :: Map.Map Var Var 
-} deriving (Show, Eq)
+} deriving (Eq)
 
-closure :: [Exp] -> [Exp]
-closure (x:xs) =
-  closure' x (ClosureEnv { fnEnv = Map.empty, lambdaEnv = Map.empty}) 0 : rest
+instance Show ClosureEnv where
+  show (ClosureEnv fnEnv lambdaEnv) =
+    "fnEnv: " ++ show fnEnv ++ ", lambdaEnv: " ++ show lambdaEnv
+
+closure :: [Exp] -> ClosureEnv -> ([Exp], ClosureEnv)
+closure [] env = ([], env)
+closure (x:xs) env =
+  let (x', env'') = closure' x env' 0        
+      (xs', env''') = closure xs env''       
+  in (x' : xs', env''')                     
   where
-    rest = closure xs
-    
-closure' :: Exp -> ClosureEnv -> Int -> Exp
+    env' = env 
+
+closure' :: Exp -> ClosureEnv -> Int -> (Exp, ClosureEnv)
 closure' (DefineProc var params exp) env n =
   let lamName = Var ("lambda_" ++ show n) in
       if Map.member var (fnEnv env)
-      then closure' exp env n
+      then closure' exp env n 
       else 
         let fnEnv' = Map.insert var params (fnEnv env)
             lambdaEnv' = Map.insert lamName lamName (lambdaEnv env)
-        in (closure' exp (ClosureEnv { fnEnv = fnEnv', lambdaEnv = lambdaEnv' }) n)
+            env' = ClosureEnv { fnEnv = fnEnv', lambdaEnv = lambdaEnv' }
+        in 
+          let (exp', env'') = closure' exp env' n
+          in (exp', env'')  
 
 closure' (Lambda vars exp) env n =
-  let freeVars = freeVariables vars exp
-      lamName = Var ("lambda_" ++ show n)
-      tupName = Var ("tup_" ++ show n)
-      fnEnv' = Map.insert tupName freeVars (fnEnv env)
-      lambdaEnv' = Map.insert lamName lamName (lambdaEnv env)
-      exp' = makeClosure'Exp exp freeVars tupName
-  in DefineProc lamName vars (closure' exp' (ClosureEnv fnEnv' lambdaEnv') (n + 1))
+  case exp of
+    (Lambda vars' exp') ->
+      let (e, v) = closure' (Lambda vars' exp') env n in
+        let defExp = getDefExp e in
+          let vars'' = getDefVars e in
+            ((Lambda vars'' defExp), v)
+    _ ->
+      let freeVars = freeVariables vars exp
+          lamName = Var ("lambda_" ++ show n)
+          tupName = Var ("tup_" ++ show n)
+          fnEnv' = Map.insert tupName freeVars (fnEnv env)
+          lambdaEnv' = Map.insert lamName lamName (lambdaEnv env)
+          exp' = makeClosure'Exp exp freeVars tupName
+          env' = ClosureEnv { fnEnv = fnEnv', lambdaEnv = lambdaEnv' }
+      in
+        let (exp'', env'') = closure' exp' env' n
+        in (DefineProc lamName vars exp'',  env'')
 
 closure' (If cnd thn els) env n =
-  If (closure' cnd env n) (closure' thn env n) (closure' els env n)
+  let (cnd', env') = closure' cnd env n
+      (thn', env'') = closure' thn env' n
+      (els', env''') = closure' els env'' n
+  in (If cnd' thn' els', env''') 
 
 closure' (Set var e) env n =
-  Set var (closure' e env n)
+  let (e', env') = closure' e env n
+  in (Set var e', env') 
 
 closure' (Application (x:xs)) env n =
   case x of
@@ -55,11 +79,18 @@ closure' (Application (x:xs)) env n =
       then
         let tupName = Var ("tup_" ++ show n)
             tup = Application (Varexp (Var "tuple") : xs)
-        in Let [Binding (Varexp tupName) tup] (Application (Varexp op : Varexp tupName : xs))
-      else Application (x : xs)
-    _ -> Application (x : xs)
+        in 
+          let (tup', env') = closure' tup env n
+              (app', env'') = closure' (Application (Varexp op : Varexp tupName : xs)) env' n
+          in (Let [Binding (Varexp tupName) tup'] app', env'')
+      else 
+        let (xs', env') = closure' (Application xs) env n
+        in (Application (x : [xs']), env')
+    _ -> 
+      let (xs', env') = closure' (Application (x:xs)) env n
+      in (Application (x : [xs']), env') 
 
-closure' exp _ _ = exp 
+closure' exp env _ = (exp, env)  
 
 makeClosure'Exp :: Exp -> [Var] -> Var -> Exp
 makeClosure'Exp exp [] _ = exp
@@ -85,3 +116,9 @@ freeVariables _ _ = []
 
 member :: (Eq a) => a -> [a] -> Bool
 member x = any (== x)
+
+getDefExp :: Exp -> Exp
+getDefExp (DefineProc var vars e) = e
+
+getDefVars :: Exp -> [Var]
+getDefVars (DefineProc var vars e) = vars
