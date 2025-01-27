@@ -41,10 +41,8 @@ toanf' (If cnd thn els) n =
 toanf' (DefineProc var params exp) n =
   DefineProc var params (desugar' (toanf' exp n))
   
-toanf' (Application exps) n =
-  let op = head exps in
-    let (x:xs) = tail exps in
-      toanf'' op n (x:xs)
+toanf' (Application op exps) n =
+  toanf'' op n exps
 
 toanf' exp n =
   exp
@@ -59,13 +57,13 @@ toanf'' op n (x:xs) =
            Bool cnd'' ->
              let exps = (map (\x -> toanf' x n) xs) in
                desugar'
-               (Let [Binding (Varexp (Var tmp)) (If cnd' (toanf' thn' n) (toanf' els' n))] (Application (op : exps)))
+               (Let [Binding (Varexp (Var tmp)) (If cnd' (toanf' thn' n) (toanf' els' n))] (Application op exps))
                  
            Prim op' e e2 ->
              let exps = (map (\x -> toanf' x n) xs) in
                desugar'
-               (Let [ Binding (Varexp (Var tmp)) (Prim op' e e2)] (Let [Binding (Varexp (Var tmp2)) (If (Varexp (Var tmp)) (toanf' thn' n) (toanf' els' n))] (Application (op : exps))))
+               (Let [ Binding (Varexp (Var tmp)) (Prim op' e e2)] (Let [Binding (Varexp (Var tmp2)) (If (Varexp (Var tmp)) (toanf' thn' n) (toanf' els' n))] (Application op exps)))
            _ -> toanf'' op (n + 1) xs
     _ ->
       let exps = (map (\x -> toanf' x n) (x:xs)) in
-        Application ([op] ++ exps)
+        Application op exps
