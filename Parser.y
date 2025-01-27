@@ -32,6 +32,8 @@ import Data.Char (isSpace, isAlpha, isDigit)
     int            { TokenInt $$ }
     define         { TokenDefine }
     closure        { TokenClosure }
+    tuple          { TokenTuple }
+    tupleref       { TokenTupleRef }
 %%
 
 Program : Exps { $1 }
@@ -51,7 +53,10 @@ Exp : true { Bool True }
     | '(' macro Exp Exp ')' { SchemeMacro $3 $4 }
     | '(' define '(' Var params ')' Exp ')' { DefineProc $4 $5 $7 }
     |  '(' closure Exp Exp Exp params ')' { Closure $3 $4 $5 $6 }
-    | '(' Exps ')' { Application $2 }
+    | '(' tuple tupleparams ')'                { Tuple $3 }
+    | '(' tupleref Exp Exp ')'             { TupleRef $3 $4 }
+
+    | '(' Exp Exps ')' { Application $2 $3 }
 
 
 Var : var { Var $1 }
@@ -73,6 +78,9 @@ bindings : binding { [$1] }
 binding : '(' Exp  Exp ')' {
     Binding $2 $3
 }
+
+tupleparams : Exp {[$1]}
+            | tupleparams Exp { $1 ++ [$2]}
 
 params : Var { [$1] }
        | params Var { $1 ++ [$2] }
@@ -97,7 +105,9 @@ data Exp =
     | DefineProc Var [Var] Exp
     | Lambda [Var] Exp
     | SchemeMacro Exp Exp
-    | Application [Exp]
+    | Tuple [Exp]
+    | TupleRef Exp Exp
+    | Application Exp [Exp]
   deriving (Show, Eq)
 
 data Exps = Exps [Exp]
@@ -133,6 +143,8 @@ data Token =
     | TokenFalse
     | TokenAnd
     | TokenClosure
+    | TokenTuple
+    | TokenTupleRef
     | TokenOr
     | TokenInt Int
     | TokenVar String
@@ -174,6 +186,8 @@ lexVar cs =
     ("false", rest)    -> TokenFalse : lexer rest
     ("define", rest)   -> TokenDefine : lexer rest
     ("closure", rest)   -> TokenClosure : lexer rest
+    ("tuple", rest)    -> TokenTuple : lexer rest
+    ("tupleref", rest) -> TokenTupleRef : lexer rest
     (var, rest)      -> TokenVar var : lexer rest
 
 main = getContents >>= print . toAst . lexer
