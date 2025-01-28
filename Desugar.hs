@@ -4,9 +4,10 @@ module Desugar where
 
 import Parser (
   Exps(Exps),
-  Exp(Varexp, Lambda, Let, Application, Letrec, Set, Begin, If, DefineProc),
+  Exp(Varexp, Lambda, Let, Application, Letrec, Set, Begin, If, DefineProc, Cond),
   Binding(Binding),
   Var(Var),
+  Cnd(Cnd, Else),
   lexer,
   toAst
   )
@@ -59,6 +60,9 @@ desugar' (If cnd thn els) =
 desugar' (DefineProc var prms exp) =
   DefineProc var prms (desugar' exp)
 
+desugar' (Cond exps) =
+  cndToIfs exps 
+  
 desugar' e = e
 
 getVar :: Binding -> Var
@@ -66,3 +70,17 @@ getVar (Binding (Varexp v) e) = v
 
 getExp :: Binding -> Exp
 getExp (Binding v e) = e
+
+cndToIfs :: [Cnd] -> Exp
+cndToIfs (x:xs)   =
+  case x of
+    Else e ->
+      e
+    _ -> (If (getcnd x) (getthn x) (cndToIfs xs))
+
+getcnd :: Cnd -> Exp
+getcnd (Cnd cnd e) = cnd
+
+getthn :: Cnd -> Exp
+getthn (Cnd cnd e) = e
+
