@@ -21,11 +21,7 @@ desugar (x:xs) =
     
 desugar' :: Exp -> Exp
 desugar' (Let bindings body) =
-  let vars = map getVar  bindings in
-    let args = map getExp bindings in
-      let op = head args in
-        let args' = tail args in
-          desugar' (Application (Lambda vars body) args)
+  (
 
 desugar' (Letrec bindings body) =
   let namings = map (\x -> (Binding (Varexp (getVar x)) (Varexp (Var "#f")))) bindings in

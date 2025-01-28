@@ -287,6 +287,3 @@ makecounters n counter =
   if counter >= n
   then []
   else [Int counter] ++ makecounters n (counter + 1)
-  
-  
-  

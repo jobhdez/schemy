@@ -1,12 +1,11 @@
 module ToAnf where
 
-import Parser
+import Parser 
     ( Binding(Binding),
-      Exp(Application, Let, Prim, If, Varexp, Bool, DefineProc),
+      Exp(Application, Let, Prim, If, Varexp, Bool, DefineProc, Lambda, Int),
       Var(Var),
       lexer,
       toAst )
-import Desugar ( desugar, desugar' )
 
 toAnf :: [Exp] -> [Exp]
 toAnf [] = []
@@ -22,48 +21,39 @@ toanf exp =
 
 toanf' :: Exp -> Int ->  Exp
 
+toanf' (If (Bool op) thn els) n =
+  let tmp = "tmp_" ++ show n in
+    (Let [Binding (Varexp (Var tmp)) (Bool op)] (If (Varexp (Var tmp)) (toanf' thn (n+1)) (toanf' els (n+1))))
+    
 toanf' (If (Prim op e e2) thn els) n =
   let tmp = "tmp_" ++ show n in
-    desugar' (Let [Binding (Varexp (Var tmp)) (Prim op e e2)] (If (Varexp (Var tmp)) (toanf thn) (toanf els)))
+    (Let [Binding (Varexp (Var tmp)) (Prim op e e2)] (If (Varexp (Var tmp)) (toanf' thn (n+1)) (toanf' els (n+1))))
 
 toanf' (If cnd thn els) n =
-  case cnd of
-    (If cnd' thn' els') ->
-      let tmp = "tmp_" ++ show n in
-        let tmp2 = "tmp_" ++ show (n + 1) in
-          case cnd' of
-            Bool cnd'' ->
-              desugar' (Let [Binding (Varexp (Var tmp)) (If cnd' (toanf' thn' n) (toanf' els' n))] (If (Varexp (Var tmp)) (toanf' thn n) (toanf' els n)))
-            Prim op e e2 ->
-              desugar' (Let [Binding (Varexp (Var tmp)) (Prim op e e2)] (Let [Binding (Varexp (Var tmp2)) (If (Varexp (Var tmp)) (toanf' thn' n) (toanf' els' n))] (If (Varexp (Var tmp2)) (toanf' thn n) (toanf' els n))))
-            _  -> toanf' cnd' n
-         
+  let tmp = ("tmp_" ++ show n) in
+    (Let [Binding (Varexp (Var tmp)) (toanf' cnd (n + 1))] (If (Varexp (Var tmp)) (toanf' thn (n + 1)) (toanf' els (n + 1))))
+   
+
 toanf' (DefineProc var params exp) n =
-  DefineProc var params (desugar' (toanf' exp n))
+  DefineProc var params (toanf' exp n)
   
 toanf' (Application op exps) n =
-  toanf'' op n exps
+  let tmp = "tmp" ++ show n in
+    (Let [Binding (Varexp (Var tmp)) op] (Application op (toAnf exps)))
 
-toanf' exp n =
-  exp
+toanf' (Lambda vars exp) n =
+  (Lambda vars (toanf' exp n))
 
-toanf'' :: Exp -> Int -> [Exp] -> Exp
-toanf'' op n (x:xs) =
-  case x of
-    If cnd' thn' els' ->
-      let tmp = "tmp_" ++ show n
-          tmp2 = "tmp_" ++ show (n + 1)
-      in case cnd' of
-           Bool cnd'' ->
-             let exps = (map (\x -> toanf' x n) xs) in
-               desugar'
-               (Let [Binding (Varexp (Var tmp)) (If cnd' (toanf' thn' n) (toanf' els' n))] (Application op exps))
-                 
-           Prim op' e e2 ->
-             let exps = (map (\x -> toanf' x n) xs) in
-               desugar'
-               (Let [ Binding (Varexp (Var tmp)) (Prim op' e e2)] (Let [Binding (Varexp (Var tmp2)) (If (Varexp (Var tmp)) (toanf' thn' n) (toanf' els' n))] (Application op exps)))
-           _ -> toanf'' op (n + 1) xs
-    _ ->
-      let exps = (map (\x -> toanf' x n) (x:xs)) in
-        Application op exps
+toanf' (Let [Binding v (Varexp (Var v2))] body) n =
+        (Let [Binding v (Varexp (Var v2))] (toanf' body n))
+
+toanf' (Let [Binding v (Int n)] body) n' =
+  (Let [Binding v (Int n)] (toanf' body n'))
+
+toanf' (Let [Binding v exp] body) n =
+  let tmp = (Varexp (Var ("tmp"++ show n))) in
+    (Let [Binding tmp (toanf' exp (n+1))] (toanf' body (n+1)))
+ 
+        
+
+toanf' x n = x

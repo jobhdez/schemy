@@ -1,7 +1,7 @@
 {
 module Parser where
 
-import Data.Char (isSpace, isAlpha, isDigit)
+import Data.Char (isSpace, isAlpha, isDigit, isAlphaNum)
 }
 
 %name toAst
@@ -54,7 +54,7 @@ Exp : true { Bool True }
     | '(' letrec '(' bindings ')' Exp ')' { Letrec $4 $6 }
     | '(' macro Exp Exp ')' { SchemeMacro $3 $4 }
     | '(' define '(' Var params ')' Exp ')' { DefineProc $4 $5 $7 }
-    |  '(' closure Exp Exp Exp params ')' { Closure $3 $4 $5 $6 }
+    |  '(' closure Exp Exp params ')' { Closure $3 $4 $5 }
     | '(' tuple tupleparams ')'                { Tuple $3 }
     | '(' tupleref Exp Exp ')'            { TupleRef $3 $4 }
     | '(' cond cndexps ')'                { Cond $3 }
@@ -108,7 +108,7 @@ data Exp =
     | Set Exp Exp
     | Begin [Exp]
     | Quote Exp
-    | Closure Exp Exp Exp [Var]
+    | Closure Exp Exp [Var]
     | DefineProc Var [Var] Exp
     | Lambda [Var] Exp
     | SchemeMacro Exp Exp
@@ -169,7 +169,7 @@ lexer :: String -> [Token]
 lexer [] = []
 lexer (c:cs)
   | isSpace c = lexer cs
-  | isAlpha c = lexVar (c:cs)
+  | isValidVarChar c = lexVar (c:cs)
   | isDigit c = lexNum (c:cs)
 lexer ('=':cs) = TokenEqual : lexer cs
 lexer ('+':cs) = TokenPlus : lexer cs
@@ -180,13 +180,16 @@ lexer ('<':cs) = TokenLess : lexer cs
 lexer ('>':cs) = TokenGreater : lexer cs
 lexer _ = error "Unrecognized character"
 
+isValidVarChar :: Char -> Bool
+isValidVarChar c = c == '-' || c == '?' || isAlphaNum c || isAlpha c
+
 lexNum :: String -> [Token]
 lexNum cs =
   let (num, rest) = span isDigit cs
    in TokenInt (read num) : lexer rest
 
 lexVar cs =
-  case span isAlpha cs of
+  case span isValidVarChar cs of
     ("let", rest)    -> TokenLet : lexer rest
     ("if", rest)     -> TokenIf : lexer rest
     ("quote", rest)  -> TokenQuote : lexer rest
