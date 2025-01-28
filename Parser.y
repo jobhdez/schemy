@@ -34,6 +34,8 @@ import Data.Char (isSpace, isAlpha, isDigit)
     closure        { TokenClosure }
     tuple          { TokenTuple }
     tupleref       { TokenTupleRef }
+    cond           { TokenCond }
+    else           { TokenElse }
 %%
 
 Program : Exps { $1 }
@@ -54,13 +56,12 @@ Exp : true { Bool True }
     | '(' define '(' Var params ')' Exp ')' { DefineProc $4 $5 $7 }
     |  '(' closure Exp Exp Exp params ')' { Closure $3 $4 $5 $6 }
     | '(' tuple tupleparams ')'                { Tuple $3 }
-    | '(' tupleref Exp Exp ')'             { TupleRef $3 $4 }
-
-    | '(' Exp Exps ')' { Application $2 $3 }
+    | '(' tupleref Exp Exp ')'            { TupleRef $3 $4 }
+    | '(' cond cndexps ')'                { Cond $3 }
+    | '(' Exp Exps ')'                    { Application $2 $3 }
 
 
 Var : var { Var $1 }
-
 Exps : Exp { [$1] }
      | Exp Exps { $1 : $2 }
 
@@ -78,6 +79,12 @@ bindings : binding { [$1] }
 binding : '(' Exp  Exp ')' {
     Binding $2 $3
 }
+
+cndexps : cndexp { [$1] }
+       | cndexps cndexp { $1 ++ [$2] }
+
+cndexp : '(' else Exp ')' { Else $3 }
+       | '(' Exp Exp ')'  { Cnd $2 $3 }
 
 tupleparams : Exp {[$1]}
             | tupleparams Exp { $1 ++ [$2]}
@@ -107,6 +114,7 @@ data Exp =
     | SchemeMacro Exp Exp
     | Tuple [Exp]
     | TupleRef Exp Exp
+    | Cond [Cnd]
     | Application Exp [Exp]
   deriving (Show, Eq)
 
@@ -121,6 +129,11 @@ data Operator = Plus | Minus | And | Or | Less | Greater | Equal
 
 data Var = Var String
   deriving (Show, Eq, Ord)
+  
+data Cnd =
+  Cnd Exp Exp
+  | Else Exp
+  deriving (Show, Eq)
   
 data Token =
       TokenLet
@@ -146,7 +159,9 @@ data Token =
     | TokenTuple
     | TokenTupleRef
     | TokenOr
+    | TokenCond
     | TokenInt Int
+    | TokenElse
     | TokenVar String
     deriving (Show, Eq)
 
@@ -188,6 +203,8 @@ lexVar cs =
     ("closure", rest)   -> TokenClosure : lexer rest
     ("tuple", rest)    -> TokenTuple : lexer rest
     ("tupleref", rest) -> TokenTupleRef : lexer rest
+    ("cond", rest)       -> TokenCond : lexer rest
+    ("else", rest)        -> TokenElse : lexer rest
     (var, rest)      -> TokenVar var : lexer rest
 
 main = getContents >>= print . toAst . lexer
