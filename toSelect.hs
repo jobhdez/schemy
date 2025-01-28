@@ -77,7 +77,22 @@ toselect [(DefineProc (Var var) vars exp)] n' =
         let movqs' = map (\a -> (Movq (Memory (getVar a)) (Reg "%rax"))) vars in
           [Label ("var" ++ "start")] ++ movqs ++ movqs' ++ [Jmp (var ++ "conclusion")] ++ toselect [exp] n'
           
-             
+toselect [If (Prim op (Varexp (Var v)) (Int n)) thn els] n' =
+  let blk = "block_" ++ show n'
+      blk2 = "block_" ++ show (n'+1)
+      op = case of
+        Less ->
+          Jl blk
+        Greater ->
+          Jg blk
+  in
+    [Cmpq (Immediate ("$" ++ show n)) (Memory v),
+     op
+     [Jmp blk2],
+     [Label blk]] ++ toselect [thn] ++ [Label blk2] ++ toselect [els]
+    
+     
+  
 toselect [If (Prim Less (Varexp (Var v)) (Int n)) thn els] n' =
   let blk = "block_" ++ show n'
       blk2 = "block_" ++ show (n'+1)
