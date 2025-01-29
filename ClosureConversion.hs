@@ -25,6 +25,7 @@ closure' (Lambda vars exp)  n  =
             let exp' = (head (closure' exp n)) in
             
               [makeLets exp' fvs (Var fvs') 0, closr]
+              
 closure' (If cnd thn els) n =
   let cnd' =  (closure' cnd n) in
     let thn' = (closure' thn n) in
