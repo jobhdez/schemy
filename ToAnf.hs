@@ -38,7 +38,7 @@ toanf' (DefineProc var params exp) n =
   
 toanf' (Application op exps) n =
   let tmp = "tmp" ++ show n in
-    (Let [Binding (Varexp (Var tmp)) op] (Application op (toAnf exps)))
+    (Let [Binding (Varexp (Var tmp)) op] (Application (Varexp (Var tmp)) (toAnf exps)))
 
 toanf' (Lambda vars exp) n =
   (Lambda vars (toanf' exp n))
@@ -49,10 +49,16 @@ toanf' (Let [Binding v (Varexp (Var v2))] body) n =
 toanf' (Let [Binding v (Int n)] body) n' =
   (Let [Binding v (Int n)] (toanf' body n'))
 
-toanf' (Let [Binding v exp] body) n =
-  let tmp = (Varexp (Var ("tmp"++ show n))) in
-    (Let [Binding tmp (toanf' exp (n+1))] (toanf' body (n+1)))
- 
-        
+toanf' (Let [Binding v (If (Bool b) cnd els)] body) n =
+  (Let [Binding v (If (Bool b) (toanf' cnd n) (toanf' els n))] (toanf' body n))
 
+toanf' (Let [Binding v (If cnd thn els)] body) n =
+  let let' = toanf' (If cnd thn els) n in
+    let if' = getIf let' in
+      let binding = getBind let' in
+        (Let binding (Let [Binding v if'] (toanf' body n)))
+
+toanf' (Let [Binding v exp] body) n =
+  (Let [Binding v exp] (toanf' body n))
+  
 toanf' x n = x
