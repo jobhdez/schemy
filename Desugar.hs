@@ -21,12 +21,12 @@ desugar (x:xs) =
     
 desugar' :: Exp -> Exp
 desugar' (Let bindings body) =
-  (
+  (Let bindings (desugar' body))
 
 desugar' (Letrec bindings body) =
   let namings = map (\x -> (Binding (Varexp (getVar x)) (Varexp (Var "#f")))) bindings in
     let sets = map (\x -> (Set (Varexp (getVar x))  (getExp x))) bindings in
-      desugar' (Let namings (Begin (sets ++ [body])))
+      (Let namings (desugar' (Begin (sets ++ [body]))))
 
 desugar' (Begin exps) =
   desugar' (makeLets exps)

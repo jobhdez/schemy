@@ -22,8 +22,7 @@ toanf exp =
 toanf' :: Exp -> Int ->  Exp
 
 toanf' (If (Bool op) thn els) n =
-  let tmp = "tmp_" ++ show n in
-    (Let [Binding (Varexp (Var tmp)) (Bool op)] (If (Varexp (Var tmp)) (toanf' thn (n+1)) (toanf' els (n+1))))
+  (If (Bool op) (toanf' thn (n+1)) (toanf' els (n+1)))
     
 toanf' (If (Prim op e e2) thn els) n =
   let tmp = "tmp_" ++ show n in

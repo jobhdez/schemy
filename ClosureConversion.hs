@@ -23,7 +23,6 @@ closure' (Lambda vars exp)  n  =
         let closr = Closure (Int arity) (Varexp (Var fn)) fvs in
           let fvs' = "fvs_" ++ show n in
             let exp' = (head (closure' exp n)) in
-            
               [makeLets exp' fvs (Var fvs') 0, closr]
               
 closure' (If cnd thn els) n =

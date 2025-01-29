@@ -12,7 +12,7 @@ import Desugar (desugar)
 
 import ToAnf ( toAnf )
 
-import ClosureConversion (closure, closureConversion, ClosureEnv)
+import ClosureConversion (closure)
 
 data Argument =
   Immediate String
@@ -55,7 +55,7 @@ toselect' (x:xs) n =
   toselect [x] n  ++ toselect' xs (n + 1)
   
 toselect :: [Exp] -> Int -> [Instruction]
-toselect [DefineProc var vars (Closure (Int arity) lambda _ fvs)] n' =
+toselect [DefineProc var vars (Closure (Int arity) lambda fvs)] n' =
   let tmp = "closure_" ++ show n' in
     let arityBits = tobinary' arity 5
         fvsexps = map (\x -> (Varexp x)) fvs
