@@ -62,3 +62,12 @@ toanf' (Let [Binding v exp] body) n =
   (Let [Binding v exp] (toanf' body n))
   
 toanf' x n = x
+
+getIf :: Exp -> Exp
+getIf (Let [Binding v e] (If cnd thn els)) =
+  (If cnd thn els)
+
+getBind :: Exp -> [Binding]
+getBind (Let binding (If cnd thn els)) =
+  binding
+  
