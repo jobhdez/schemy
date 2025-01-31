@@ -1,4 +1,4 @@
-module ToAnf where
+gmodule ToAnf where
 
 import Parser 
     ( Binding(Binding),
@@ -21,6 +21,12 @@ toanf exp =
 
 toanf' :: Exp -> Int ->  Exp
 
+toanf' (Prim op e e2) n =
+  let tmpvar = Varexp (Var ("tmp" ++ show n))
+      tmpvar2 = Varexp (Var ("tmp" ++ show (n+1)))
+      e2' = makeAnf e2 (Prim op tmpvar tmpvar2) tmpvar2 n in
+    makeAnf e e2' tmpvar n
+    
 toanf' (If (Bool op) thn els) n =
   (If (Bool op) (toanf' thn (n+1)) (toanf' els (n+1)))
     
@@ -70,4 +76,14 @@ getIf (Let [Binding v e] (If cnd thn els)) =
 getBind :: Exp -> [Binding]
 getBind (Let binding (If cnd thn els)) =
   binding
-  
+
+makeAnf :: Exp -> Exp -> Exp -> Int -> Exp
+makeAnf e x y n =
+  let anf' = toanf' e n in
+    case anf' of
+      Let binding body ->
+        Let binding (Let [Binding y body] x)
+        
+      _ ->
+        Let [Binding y e] x
+                               
