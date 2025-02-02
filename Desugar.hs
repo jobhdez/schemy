@@ -4,7 +4,7 @@ module Desugar where
 
 import Parser (
   Exps(Exps),
-  Exp(Varexp, Lambda, Let, Application, Letrec, Set, Begin, If, DefineProc, Cond),
+  Exp(Varexp, Lambda, Let, Application, Letrec, Set, Begin, If, DefineProc, Cond, Nil, Cons, Tuple, ListExp, Car, Cdr),
   Binding(Binding),
   Var(Var),
   Cnd(Cnd, Else),
@@ -58,6 +58,21 @@ desugar' (DefineProc var prms exp) =
 
 desugar' (Cond exps) =
   cndToIfs exps 
+
+desugar' (Cons e e2) =
+  Tuple [e, desugar' e2]
+
+desugar' (ListExp (x:xs)) =
+  Tuple [x, desugar' (ListExp xs)]
+
+desugar' (ListExp []) =
+  Nil
+
+desugar' (Car exp) =
+  (Car (desugar' exp))
+
+desugar' (Cdr exp) =
+  Cdr (desugar' exp)
   
 desugar' e = e
 

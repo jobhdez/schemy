@@ -36,14 +36,20 @@ import Data.Char (isSpace, isAlpha, isDigit, isAlphaNum)
     tupleref       { TokenTupleRef }
     cond           { TokenCond }
     else           { TokenElse }
+    cons           { TokenCons}
+    nil            { TokenNil }
+    list           { TokenList }
+    car            { TokenCar }
+    cdr             { TokenCdr }
 %%
 
 Program : Exps { $1 }
 
 Exp : true { Bool True }
     | false { Bool False }
-    | Var { Varexp $1 }
+    | nil { Nil }
     | int { Int $1 }
+    | Var { Varexp $1 }
     | prim { $1 }
     | '(' let '(' bindings ')' Exp ')' { Let $4 $6 }
     | '(' if Exp Exp Exp ')' { If $3 $4 $5 }
@@ -58,6 +64,10 @@ Exp : true { Bool True }
     | '(' tuple tupleparams ')'                { Tuple $3 }
     | '(' tupleref Exp Exp ')'            { TupleRef $3 $4 }
     | '(' cond cndexps ')'                { Cond $3 }
+    | '(' cons Exp Exp ')'                    { Cons $3 $4 }
+    | '(' list tupleparams ')'            { ListExp $3 }
+    | '(' cdr Exp ')'                         { Cdr $3 }
+    | '(' car Exp ')'                     { Car $3 }
     | '(' Exp Exps ')'                    { Application $2 $3 }
 
 
@@ -114,7 +124,12 @@ data Exp =
     | SchemeMacro Exp Exp
     | Tuple [Exp]
     | TupleRef Exp Exp
+    | ListExp [Exp]
+    | Cons Exp Exp
+    | Car Exp
+    | Cdr Exp 
     | Cond [Cnd]
+    | Nil 
     | Application Exp [Exp]
   deriving (Show, Eq)
 
@@ -162,6 +177,11 @@ data Token =
     | TokenCond
     | TokenInt Int
     | TokenElse
+    | TokenCdr
+    | TokenCar
+    | TokenList
+    | TokenCons
+    | TokenNil
     | TokenVar String
     deriving (Show, Eq)
 
@@ -169,8 +189,8 @@ lexer :: String -> [Token]
 lexer [] = []
 lexer (c:cs)
   | isSpace c = lexer cs
-  | isValidVarChar c = lexVar (c:cs)
   | isDigit c = lexNum (c:cs)
+  | isValidVarChar c = lexVar (c:cs)
 lexer ('=':cs) = TokenEqual : lexer cs
 lexer ('+':cs) = TokenPlus : lexer cs
 lexer ('-':cs) = TokenMinus : lexer cs
@@ -208,6 +228,11 @@ lexVar cs =
     ("tupleref", rest) -> TokenTupleRef : lexer rest
     ("cond", rest)       -> TokenCond : lexer rest
     ("else", rest)        -> TokenElse : lexer rest
+    ("list", rest)   -> TokenList : lexer rest
+    ("cons", rest)  -> TokenCons : lexer rest
+    ("car", rest)    -> TokenCar : lexer rest
+    ("cdr", rest)    -> TokenCdr : lexer rest
+    ("nil", rest)      -> TokenNil : lexer rest
     (var, rest)      -> TokenVar var : lexer rest
 
 main = getContents >>= print . toAst . lexer
