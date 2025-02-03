@@ -7,6 +7,9 @@ import Parser (
    Binding(Binding),
    lexer,
    toAst)
+
+import Desugar (desugar)
+
 import ToAnf (toanf, toAnf)
 import qualified Data.Map as Map
 
@@ -34,12 +37,27 @@ closure' (If cnd thn els) n =
 closure' (Set var e) n =
   [(Set var (head (closure' e n)))]
 
-closure' (DefineProc var vars exp) n =
-  let exp' = closure' exp n in
+closure' (DefineProc var vars (Let binding (Lambda vars' exp))) n =
+  let exp' = closure' (Lambda vars' exp) n in
     if length exp' == 2
-    then [head exp'] ++ [(DefineProc var vars (head (tail exp')))]
+    then
+      let lamName = getLambdaName (head exp')
+          fvs = getFvs (head exp') in
+        [DefineProc var vars (Let binding (head exp'))] ++ [(DefineProc (Var lamName) fvs (head (tail exp')))]
     else [(DefineProc var vars (head exp'))]
 
+closure' (DefineProc var vars (Lambda vars' exp)) n =
+  let exp' = closure' (Lambda vars' exp) n in
+    if length exp' == 2
+    then
+      let lamName = getLambdaName (head exp')
+          fvs = getFvs (head exp') in
+        [DefineProc var vars (head exp')] ++ [(DefineProc (Var lamName) fvs (head (tail exp')))]
+    else [(DefineProc var vars (head exp'))]
+    
+closure' (DefineProc var vars exp) n =
+  [(DefineProc var vars (head (closure' exp  n)))]
+  
 closure' (Application op exps) n =
   let op' = closure' op n in
     let exps' = closure exps n in
@@ -79,4 +97,16 @@ freeVariables vars (If cnd thn els) =
 freeVariables vars (Lambda vars' exp) =
   filter (`notElem` vars') (freeVariables vars exp)
 
+freeVariables vars (Let [Binding var exp] body) =
+  freeVariables vars exp ++ freeVariables vars body
+  
+
 freeVariables _ _ = []
+
+getLambdaName :: Exp -> String
+getLambdaName (Closure (Int arity) (Varexp (Var fn)) fvs) =
+  fn
+
+getFvs :: Exp -> [Var]
+getFvs (Closure (Int arity) (Varexp (Var fn)) fvs) =
+  fvs
