@@ -1,4 +1,4 @@
-gmodule ToAnf where
+module ToAnf where
 
 import Parser 
     ( Binding(Binding),
