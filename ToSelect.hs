@@ -2,9 +2,10 @@ module ToSelect where
 
 import Parser (
   Binding(Binding),
-  Exp(Application, Let, Prim, If, Varexp, Bool, DefineProc, Lambda, Int, Set, Closure, Tuple, TupleRef),
+  Exp(Application, Let, Prim, If, Varexp, Bool, DefineProc, Lambda, Int, Set, Closure, Tuple, TupleRef, Cond),
   Operator(Plus, Minus, Less, Greater),
   Var(Var),
+  Cnd(Cnd),
   lexer,
   toAst)
 
@@ -55,8 +56,8 @@ toselect' (x:xs) n =
   toselect [x] n  ++ toselect' xs (n + 1)
   
 toselect :: [Exp] -> Int -> [Instruction]
-toselect [DefineProc var vars (Closure (Int arity) lambda fvs)] n' =
-  let tmp = "closure_" ++ show n' in
+toselect [(Closure (Int arity) lambda fvs)] n' =
+   let tmp = "closure_" ++ show n' in
     let arityBits = tobinary' arity 5
         fvsexps = map (\x -> (Varexp x)) fvs
         ptrMask = getPointMask' fvsexps
@@ -71,7 +72,7 @@ toselect [DefineProc var vars (Closure (Int arity) lambda fvs)] n' =
        Movq (Immediate (show (8 * (len + 1)))) (Memory "free_ptr(%rip)"),
        Movq (Immediate nnn) (Memory "0(%r11)"),
        Movq (Reg "%r11") (Memory tmp)] 
-      
+ 
 toselect [(DefineProc (Var var) vars exp)] n' =
   let diff = (length registers) - (length vars) in
     let regs = take (diff + 1) registers in
@@ -79,33 +80,6 @@ toselect [(DefineProc (Var var) vars exp)] n' =
         let movqs' = map (\a -> (Movq (Memory (getVar a)) (Reg "%rax"))) vars in
           [Label ("var" ++ "start")] ++ movqs ++ movqs' ++ [Jmp (var ++ "conclusion")] ++ toselect [exp] n'
           
-toselect [If (Prim op (Varexp (Var v)) (Int n)) thn els] n' =
-  let blk = "block_" ++ show n'
-      blk2 = "block_" ++ show (n'+1)
-      op' = case op of
-        Less ->
-          Jl blk
-        Greater ->
-          Jg blk
-  in
-    [Cmpq (Immediate ("$" ++ show n)) (Memory v),
-     op',
-     Jmp blk2,
-     Label blk] ++ (toselect' [thn] n') ++ [Label blk2] ++ (toselect' [els] n')
-    
-     
-  
-toselect [If (Prim Less (Varexp (Var v)) (Int n)) thn els] n' =
-  let blk = "block_" ++ show n'
-      blk2 = "block_" ++ show (n'+1)
-  in
-    [Cmpq (Immediate ("$" ++ show n)) (Memory v),
-    (Setl (Reg "%al")),
-     Movzbq (Reg"%al") (Reg "%rsi"),
-    Cmpq (Immediate "$1") (Reg "%rsi"),
-    Je blk,
-    Jmp blk2,
-    Label blk] ++ (toselect [thn] (n' + 2 )) ++ [Jmp "conclusion"] ++ [Label blk] ++ toselect [els] (n' + 1) ++ [Jmp "conclusion"]
 
 toselect [If (Varexp (Var v)) thn els] n' =
    [Cmpq (Memory v) (Reg "%rsi"),
@@ -118,7 +92,17 @@ toselect [If (Varexp (Var v)) thn els] n' =
    where
      blk = "block" ++ show n'
      blk2 = "block" ++ show (n'+1)
-     
+
+toselect [Cond (x:xs)] n' =
+  case x of
+    (Cnd (Application procedure  args) thn) ->
+      let app = toselect [(Application procedure args)] n' in
+        let outputvar = getMemoryName (last app) in
+          app ++ [Cmpq (Immediate "$1") (Memory outputvar), Je ("block" ++ show n'), Jmp ("block" ++ show (n'+1)), Label ("block" ++ show n')] ++ toselect [thn] (n'+2) ++ [Label ("block" ++ show (n'+1))] ++ toselect [Cond xs] (n' + 2)
+          
+          
+        
+      
 toselect [Int n] n' =
   [Movq (Immediate ("$" ++ show n)) (Reg "%rdi"),
    Callq "print_int"]
@@ -160,7 +144,7 @@ toselect [Set (Varexp (Var v)) (Prim Minus (Int n) (Varexp (Var v')))] n' =
    Subq (Reg "%rax") (Memory v)]
   
 toselect [Let [(Binding (Varexp (Var v)) (TupleRef (Varexp (Var e)) (Int e2)))] body] n' =
-  [Movq (Memory e ) (Reg "%r11"),
+  [Movq (Memory e) (Reg "%r11"),
          Movq (Memorytup ("8(" ++ show (e2 + 1) ++ "(%r11)")) (Memory e)] ++ toselect [body] n'
 
 toselect [Application x xs] n' =
@@ -195,12 +179,14 @@ toselect [Application x xs] n' =
             [Leaq (v' ++ "(%rip)") (Memory ("fnname" ++ show n'))] ++ intassembly ++ [Callq ("*" ++ v')]
         [Prim op (Int a) (Int b)] ->
           [Leaq (v' ++ "(%rip)") (Memory ("fnname" ++ show n'))] ++ [Cmpq (Immediate ("$" ++ show a)) (Immediate ("$" ++ (show b))), (Setl (Reg "%al")),  Movzbq (Reg"%al") (Reg "%rsi")]
+        _ ->
+          let movs = map (\(x,y) -> (Movq (toin x) (Reg y))) $ zip xs registers in
+            movs ++ [Callq ("*" ++ v')] ++ [Movq (Reg "%rax") (Memory ("fnname" ++ show n'))]
+      
 
     Lambda [(Var var)] exp ->
       [Leaq (var ++ "(%rip)") (Memory ("fnname" ++ show n'))] ++ toselect [exp] n' ++ toselect xs n'
-      
-
-
+ 
 toselect [(Prim Plus (Int n) (Int n2))] n' =
   [Movq (Immediate ("$" ++ show n2)) (Reg "%rax"),
    Addq (Immediate ("$" ++ show n)) (Reg "%rax")]
@@ -236,8 +222,12 @@ toselect [(Prim Less (Int n) (Int n2))] n' =
     blk = "block" ++ (show n')
     blk2 = "block" ++ (show n')
     
-    
-  
+toselect [(Let [Binding (Varexp (Var var)) (Prim Less (Int n) (Int n''))] (If (Varexp (Var cnd)) thn els))] n' =
+  [Movq (Immediate (show n)) (Memory var), Cmpq (Immediate (show n'')) (Memory var),
+   Setl (Reg "%al"),
+   Movzbq (Reg "%al") (Reg "%rsi"),
+   Cmpq (Immediate "$1") (Reg "%rsi")] ++ [Je ("blk" ++ show n)] ++ [Jmp ("blk" ++ show (n+1))] ++ [Label ("blk" ++ show n)] ++  toselect [thn] n' ++  [(Label ("blk" ++ show (n+1)))] ++ toselect [els] n'
+
 getNum :: Exp -> Int
 getNum (Int n) = n
 
@@ -287,3 +277,15 @@ makecounters n counter =
   if counter >= n
   then []
   else [Int counter] ++ makecounters n (counter + 1)
+
+
+toin :: Exp -> Argument
+toin (Varexp (Var var)) =
+  Memory var
+
+toin (Int n) =
+  Immediate ("$" ++ show n)
+
+getMemoryName :: Instruction -> String
+getMemoryName (Movq (Reg r) (Memory m)) =
+  m

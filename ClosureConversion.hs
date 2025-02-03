@@ -41,18 +41,19 @@ closure' (DefineProc var vars (Let binding (Lambda vars' exp))) n =
   let exp' = closure' (Lambda vars' exp) n in
     if length exp' == 2
     then
-      let lamName = getLambdaName (head exp')
-          fvs = getFvs (head exp') in
-        [DefineProc var vars (Let binding (head exp'))] ++ [(DefineProc (Var lamName) fvs (head (tail exp')))]
+      let lamName = getLambdaName (head (tail exp'))
+          fvs = getFvs (head (tail exp')) in
+        [DefineProc var vars (Let binding (head (tail exp')))] ++ [(DefineProc (Var lamName) fvs (head exp'))]
     else [(DefineProc var vars (head exp'))]
 
 closure' (DefineProc var vars (Lambda vars' exp)) n =
   let exp' = closure' (Lambda vars' exp) n in
     if length exp' == 2
     then
-      let lamName = getLambdaName (head exp')
-          fvs = getFvs (head exp') in
-        [DefineProc var vars (head exp')] ++ [(DefineProc (Var lamName) fvs (head (tail exp')))]
+      let closuree = head (tail exp')
+          lamName = getLambdaName closuree
+          fvs = getFvs (head (tail exp')) in
+        [DefineProc var vars (head (tail exp'))] ++ [(DefineProc (Var lamName) fvs (head exp'))]
     else [(DefineProc var vars (head exp'))]
     
 closure' (DefineProc var vars exp) n =
