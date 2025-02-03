@@ -60,6 +60,7 @@ Exp : true { Bool True }
     | '(' letrec '(' bindings ')' Exp ')' { Letrec $4 $6 }
     | '(' macro Exp Exp ')' { SchemeMacro $3 $4 }
     | '(' define '(' Var params ')' Exp ')' { DefineProc $4 $5 $7 }
+| '(' define Var Exp ')'                { DefineExp $3 $4 }
     |  '(' closure Exp Exp params ')' { Closure $3 $4 $5 }
     | '(' tuple tupleparams ')'                { Tuple $3 }
     | '(' tupleref Exp Exp ')'            { TupleRef $3 $4 }
@@ -72,6 +73,19 @@ Exp : true { Bool True }
 
 
 Var : var { Var $1 }
+    | lambda { Var "lambda"}
+    | define { Var "define" }
+    | quote { Var "quote" } 
+    | cond { Var "cond" }
+    | begin { Var "begin" }
+    | if { Var "if" }
+    | begin { Var "begin" }
+    | set { Var "set" }
+    | else {Var "else"}
+    | car { Var "car" }
+    | cdr { Var "cdr" }
+    | cons { Var "cons" }
+
 Exps : Exp { [$1] }
      | Exp Exps { $1 : $2 }
 
@@ -120,6 +134,7 @@ data Exp =
     | Quote Exp
     | Closure Exp Exp [Var]
     | DefineProc Var [Var] Exp
+    | DefineExp Var Exp
     | Lambda [Var] Exp
     | SchemeMacro Exp Exp
     | Tuple [Exp]
