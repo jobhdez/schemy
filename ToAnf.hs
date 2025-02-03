@@ -20,12 +20,18 @@ toanf exp =
 
 
 toanf' :: Exp -> Int ->  Exp
-
 toanf' (Prim op e e2) n =
-  let tmpvar = Varexp (Var ("tmp" ++ show n))
-      tmpvar2 = Varexp (Var ("tmp" ++ show (n+1)))
-      e2' = makeAnf e2 (Prim op tmpvar tmpvar2) tmpvar2 n in
-    makeAnf e e2' tmpvar n
+  let tmp = Varexp (Var ("tmp" ++ show n))
+      tmp2 = Varexp (Var ("tmp" ++ show (n+1))) in
+    if (isatomic e) && (isatomic e2)
+    then (Prim op e e2)
+    else
+      if (isatomic e) && not (isatomic e2) || (isatomic e2) && not (isatomic e)
+      then
+        if (isatomic e) then makeAnf e2 (Prim op e tmp2) tmp2 (n+1) else makeAnf e (Prim op tmp e2) tmp (n+1)
+      else
+        let e2' = makeAnf e2 (Prim op tmp tmp2) tmp2  n in
+          makeAnf e e2' tmp (n + 1)
     
 toanf' (If (Bool op) thn els) n =
   (If (Bool op) (toanf' thn (n+1)) (toanf' els (n+1)))
@@ -87,3 +93,8 @@ makeAnf e x y n =
       _ ->
         Let [Binding y e] x
                                
+isatomic :: Exp -> Bool
+isatomic (Int n) = True
+isatomic (Varexp (Var n)) = True
+isatomic exp = False
+  
