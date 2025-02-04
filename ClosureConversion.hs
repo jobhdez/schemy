@@ -1,10 +1,11 @@
 module ClosureConversion where
 
 import Parser (
-   Exp(Application, Prim, Lambda, DefineProc, If, Set, Varexp, Let, Int, Closure, Tuple, TupleRef),
+   Exp(Application, Prim, Lambda, DefineProc, If, Set, Varexp, Let, Int, Closure, Tuple, TupleRef, Cond),
    Var(Var),
    Operator(Plus),
    Binding(Binding),
+   Cnd(Cnd, Else),
    lexer,
    toAst)
 
@@ -58,18 +59,33 @@ closure' (DefineProc var vars (Lambda vars' exp)) n =
     
 closure' (DefineProc var vars exp) n =
   [(DefineProc var vars (head (closure' exp  n)))]
-  
-closure' (Application op exps) n =
-  let op' = closure' op n in
-    let exps' = closure exps n in
-      [(Application (head op') exps')]
-
+-- map lambda x: x+1 (list 2 3 4)
+-- (define (x r) (+ x 1))
+-- map x (list 23 4)
+closure' (Application op (x:xs)) n =
+  case op of
+    (Varexp (Var "map")) ->
+      case x of
+        (Lambda vars exp) ->
+          let closuree = head (tail (closure' x n))
+              closrName = getLambdaName closuree
+              fvs = getFvs closuree
+              exps = [Varexp (Var closrName)] ++ closure xs n
+              fn = DefineProc (Var closrName) fvs closuree in
+            [fn, Application (Varexp (Var "map")) exps]
+    _->
+      let exps = map (\x-> (closure' x n)) (x:xs) in
+        [Application op (concat exps)]
+            
 closure' (Let [Binding v e] body) n =
   let bdy = (closure' body n) in 
     if length bdy == 2
     then (tail bdy) ++ [(Let [Binding v e] (head bdy))]
     else [(Let [Binding v e] (head bdy))]
-
+closure' (Cond cnds) n =
+  let cnds' = makeCnds cnds n in
+    [Cond cnds']
+    
 closure' exp n = [exp]
 
 makeLets :: Exp -> [Var] -> Var -> Int -> Exp
@@ -111,3 +127,12 @@ getLambdaName (Closure (Int arity) (Varexp (Var fn)) fvs) =
 getFvs :: Exp -> [Var]
 getFvs (Closure (Int arity) (Varexp (Var fn)) fvs) =
   fvs
+makeCnds :: [Cnd] -> Int -> [Cnd]
+makeCnds (x:xs) n =
+  case x of
+    Cnd cnd exp ->
+      [Cnd (head (closure' cnd n)) (head (closure' exp n))] ++ makeCnds xs (n+1)
+    Else exp ->
+      [Else (head (closure' exp n))]
+      
+  
