@@ -6,19 +6,20 @@ import Parser (
   toAst
   )
 import Desugar (desugar)
-import ToAnf (toAnf)
+import ToAnf (toAnf, revealFunctions)
 import ClosureConversion (closure)
 import ToSelect (toselect')
 
 compile :: String -> IO ()
 compile exp =
   let ast = toAst (lexer exp)
-      anf = toAnf ast
+      anf = toAnf (revealFunctions ast)
       closr = closure anf 0
       selects = toselect' closr 0
   in print selects
 
+main :: IO ()
 main = do
-  s <- readFile "test2.scm"
+  s <- readFile "cons.scm"
   compile s
 

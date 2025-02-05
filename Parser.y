@@ -41,6 +41,7 @@ import Data.Char (isSpace, isAlpha, isDigit, isAlphaNum)
     list           { TokenList }
     car            { TokenCar }
     cdr             { TokenCdr }
+    funref          {TokenFunref }
 %%
 
 Program : Exps { $1 }
@@ -67,6 +68,7 @@ Exp : true { Bool True }
     | '(' cond cndexps ')'                { Cond $3 }
     | '(' cons Exp Exp ')'                    { Cons $3 $4 }
     | '(' list tupleparams ')'            { ListExp $3 }
+    | '(' funref Var int ')'               { FunRef $3 $4 }
     | '(' cdr Exp ')'                         { Cdr $3 }
     | '(' car Exp ')'                     { Car $3 }
     | '(' Exp Exps ')'                    { Application $2 $3 }
@@ -144,6 +146,7 @@ data Exp =
     | Car Exp
     | Cdr Exp 
     | Cond [Cnd]
+    | FunRef Var Int
     | Nil 
     | Application Exp [Exp]
   deriving (Show, Eq)
@@ -197,6 +200,7 @@ data Token =
     | TokenList
     | TokenCons
     | TokenNil
+    | TokenFunref
     | TokenVar String
     deriving (Show, Eq)
 
@@ -248,6 +252,7 @@ lexVar cs =
     ("car", rest)    -> TokenCar : lexer rest
     ("cdr", rest)    -> TokenCdr : lexer rest
     ("nil", rest)      -> TokenNil : lexer rest
+    ("funref", rest)   -> TokenFunref : lexer rest
     (var, rest)      -> TokenVar var : lexer rest
 
 main = getContents >>= print . toAst . lexer

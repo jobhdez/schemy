@@ -74,14 +74,14 @@ closure' (Application op (x:xs)) n =
               fn = DefineProc (Var closrName) fvs closuree in
             [fn, Application (Varexp (Var "map")) exps]
     _->
-      let exps = map (\x-> (closure' x n)) (x:xs) in
-        [Application op (concat exps)]
+      [Application op (x:xs)]
             
 closure' (Let [Binding v e] body) n =
   let bdy = (closure' body n) in 
     if length bdy == 2
     then (tail bdy) ++ [(Let [Binding v e] (head bdy))]
     else [(Let [Binding v e] (head bdy))]
+    
 closure' (Cond cnds) n =
   let cnds' = makeCnds cnds n in
     [Cond cnds']
