@@ -20,6 +20,6 @@ compile exp =
 
 main :: IO ()
 main = do
-  s <- readFile "cons.scm"
+  s <- readFile "testx.scm"
   compile s
 

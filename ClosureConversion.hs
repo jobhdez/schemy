@@ -1,7 +1,7 @@
 module ClosureConversion where
 
 import Parser (
-   Exp(Application, Prim, Lambda, DefineProc, If, Set, Varexp, Let, Int, Closure, Tuple, TupleRef, Cond),
+   Exp(Application, Prim, Lambda, DefineProc, If, Set, Varexp, Let, Int, Closure, Tuple, TupleRef, Cond, Begin, Quote),
    Var(Var),
    Operator(Plus),
    Binding(Binding),
@@ -85,7 +85,11 @@ closure' (Let [Binding v e] body) n =
 closure' (Cond cnds) n =
   let cnds' = makeCnds cnds n in
     [Cond cnds']
-    
+
+closure' (Begin exps) n =
+  let bgns = map (\x -> closure' x n) exps
+      bgns' = concat bgns in
+    [Begin bgns']
 closure' exp n = [exp]
 
 makeLets :: Exp -> [Var] -> Var -> Int -> Exp

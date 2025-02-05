@@ -63,7 +63,7 @@ desugar' (Cons e e2) =
   Tuple [e, desugar' e2]
 
 desugar' (ListExp (x:xs)) =
-  Tuple [x, desugar' (ListExp xs)]
+  Cons x  (desugar' (ListExp xs))
 
 desugar' (ListExp []) =
   Nil

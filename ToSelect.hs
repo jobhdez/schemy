@@ -2,7 +2,7 @@ module ToSelect where
 
 import Parser (
   Binding(Binding),
-  Exp(Application, Let, Prim, If, Varexp, Bool, DefineProc, Lambda, Int, Set, Closure, Tuple, TupleRef, Cond, Cons, Nil, FunRef),
+  Exp(Application, Let, Prim, If, Varexp, Bool, DefineProc, Lambda, Int, Set, Closure, Tuple, TupleRef, Cond, Cons, Nil, FunRef, Quote, Begin, ListExp),
   Operator(Plus, Minus, Less, Greater),
   Var(Var),
   Cnd(Cnd, Else),
@@ -95,8 +95,8 @@ toselect [If (Varexp (Var v)) thn els] n' =
 
 toselect [Cond (x:xs)] n' =
   case x of
-    (Cnd (Application procedure  args) thn) ->
-      let app = toselect [(Application procedure args)] n' in
+    (Cnd (Application (FunRef (Var name) n)  args) thn) ->
+      let app = toselect [(Application (FunRef (Var name) n) args)] n' in
         let outputvar = getMemoryName (last app) in
           app ++ [Cmpq (Immediate "$1") (Memory outputvar), Je ("block" ++ show n'), Jmp ("block" ++ show (n'+1)), Label ("block" ++ show n')] ++ toselect [thn] (n'+2) ++ [Label ("block" ++ show (n'+1))] ++ toselect [Cond xs] (n' + 2)
     Else exp ->
@@ -241,7 +241,8 @@ toselect [(Cons e e2)] n' =
        vecname = "vecname" ++ show n'
        iscopied = [1]
        counters = makecounters len 0
-       tag = binaryToDecimal (ptrMask ++ lenbits ++ iscopied) 0
+       bits = (ptrMask ++ lenbits ++ iscopied)
+       tag = binaryToDecimal bits (length bits - 1)
        makesets = map (\(x, n'') -> 
                              [ Movq (Memory vecname) (Reg "%r11")
                              , Movq (toin x)
@@ -279,7 +280,20 @@ toselect [(Tuple exps)] n' =
             , Movq (Immediate (show (8 * (len + 1)))) (Memory "free_ptr(%rip)")
             , Movq (Immediate (show tag)) (Memory ("0(%r11)"))
             , Movq (Reg "%r11") (Memory vecname)] ++ makesets' ++ [ Movq (Memory vecname) (Reg "%r11") ] ++ [ Movq (Memory ("vectorset" ++ show n')) (Reg "%rdi") ] ++ [ Callq ("*" ++ "fnname" ++ show n') ] ++ [ Movq (Reg "%rax") (Memory ("callq" ++ show n')) ]
+            
+toselect [(Quote n')] n = toselect [n'] n
+toselect [Begin (x:xs)] n =
+  toselect [x] n ++ toselect' xs n
+toselect [Nil] n = [(Movq (Immediate "$0") (Memory ("nil"++show n)))]
 
+toselect [(Bool b)] n =
+  [Movq (tobool (Bool b)) (Memory ("bool"++ show n))]
+
+toselect [(ListExp exps)] n =
+  let desugar' = desugar [(ListExp exps)] in
+    let anf' = toAnf (revealFunctions desugar') in
+      let clsr = closure anf' 0 in
+        toselect clsr n
 toselectfn :: [Exp] ->  String -> Int -> [Instruction]
 toselectfn [(FunRef (Var op) n)] var n' =
   [Leaq (op ++ "(%rip)") (Memory var)]
@@ -318,9 +332,6 @@ getPointMask' (x:xs) =
     _ ->
       0 : getPointMask' xs
 
-
-   
-binaryToDecimal :: [Int] -> Int ->  Int
 binaryToDecimal [] n = 0
 binaryToDecimal (x:xs) n =
   x * (2^n) + rest

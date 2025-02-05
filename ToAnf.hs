@@ -2,8 +2,10 @@ module ToAnf where
 
 import Parser 
     ( Binding(Binding),
-      Exp(Application, Let, Prim, If, Varexp, Bool, DefineProc, Lambda, Int, Cons, Nil, FunRef),
+      Exp(Application, Let, Prim, If, Varexp, Bool, DefineProc, Lambda, Int, Cons, Nil, FunRef, Quote, Begin, Set, Cond),
       Var(Var),
+      Operator(Plus),
+      Cnd(Cnd, Else),
       lexer,
       toAst )
 
@@ -35,8 +37,23 @@ reveal (Let [Binding var exp] body) =
 reveal (Cons e e2) =
   Cons (reveal e) (reveal e2)
 
+reveal (Begin exps) =
+  let rvs = map reveal exps in
+    Begin rvs
+
+reveal (Cond cnds) =
+  let rvlconds = revealCnds cnds in
+    Cond rvlconds
 reveal x = x
-  
+
+revealCnds :: [Cnd] -> [Cnd]
+revealCnds [] = []
+revealCnds (x:xs) =
+  case x of
+    Cnd op exp ->
+      [Cnd (reveal op) (reveal exp)] ++ revealCnds xs
+    Else exp ->
+      [Else (reveal exp)] ++ revealCnds xs
 toAnf :: [Exp] -> [Exp]
 toAnf [] = []
 toAnf (x:xs) =
@@ -58,28 +75,28 @@ toanf' (Prim op e e2) n =
     else
       if (isatomic e) && not (isatomic e2) || (isatomic e2) && not (isatomic e)
       then
-        if (isatomic e) then makeAnf e2 (Prim op e tmp2) tmp2 (n+1) else makeAnf e (Prim op tmp e2) tmp (n+1)
+        if (isatomic e) then makeAnf e2 (Prim op e tmp2) tmp2 (n+1) else  (makeAnf e (Prim op tmp e2) tmp (n+1))
       else
-        let e2' = makeAnf e2 (Prim op tmp tmp2) tmp2  n in
-          makeAnf e e2' tmp (n + 1)
+        let e2' = (makeAnf e2 (Prim op tmp tmp2) tmp2  n) in
+          (makeAnf e e2' tmp (n + 1))
     
 toanf' (If (Bool op) thn els) n =
-  (If (Bool op) (toanflet (toanf' thn (n+1))) (toanflet (toanf' els (n+1))))
+  (If (Bool op) (toanf' thn (n+1)) (toanf' els (n+1)))
     
 toanf' (If (Prim op e e2) thn els) n =
   let tmp = "tmp_" ++ show n in
-    (Let [Binding (Varexp (Var tmp)) (Prim op e e2)] (If (Varexp (Var tmp)) (toanflet (toanf' thn (n+1))) (toanflet (toanf' els (n+1)))))
+    (Let [Binding (Varexp (Var tmp)) (Prim op e e2)] (If (Varexp (Var tmp)) (toanf' thn (n+1)) (toanf' els (n+1))))
 
 toanf' (If cnd thn els) n =
   let tmp = ("tmp_" ++ show n) in
-    (Let [Binding (Varexp (Var tmp)) (toanflet (toanf' cnd (n + 1)))] (If (Varexp (Var tmp)) (toanflet (toanf' thn (n + 1))) (toanflet (toanf' els (n + 1)))))
+    (Let [Binding (Varexp (Var tmp)) (toanf' cnd (n + 1))] (If (Varexp (Var tmp)) (toanf' thn (n + 1)) (toanf' els (n + 1))))
    
 
 toanf' (DefineProc var params exp) n =
-  DefineProc var params (toanflet (toanf' exp n))
+  DefineProc var params (toanf' exp n)
 
 toanf' (Lambda vars exp) n =
-  (Lambda vars (toanflet (toanf' exp n)))
+  (Lambda vars (toanf' exp n))
 
 toanf' (Let [Binding v (Varexp (Var v2))] body) n =
         (Let [Binding v (Varexp (Var v2))] (toanflet (toanf' body n)))
@@ -112,9 +129,24 @@ toanf' (Cons e e2) n =
           
 toanf' (Application op exps) n =
   let exps' = map (\x -> (toanf' x n)) exps in
-    appToAnf (Application op exps) n []
-  
+    appToAnf (Application op exps') n []
+
+toanf' (Begin exps) n =
+  let bgns = map (\x -> (toanf' x n)) exps in
+    Begin bgns
+    
+toanf' (Cond exps) n =
+  let cnds = toanfcnd exps n in
+    Cond cnds
 toanf' x n = x
+toanfcnd :: [Cnd] -> Int -> [Cnd]
+toanfcnd [] n = []
+toanfcnd (x:xs) n =
+  case x of
+    Cnd op exp ->
+      [Cnd (toanf' op n) (toanf' exp n)] ++ toanfcnd xs (n+1)
+    Else exp ->
+      [Else (toanf' exp n)]
 appToAnf (Application (FunRef var n') []) n tmps =
   (Application (FunRef var n')) tmps
     
@@ -163,17 +195,17 @@ getExps (Application op exps) =
   exps
 
 toanflet :: Exp -> Exp
-toanflet (Let [Binding var exp] body) =
-  case exp of
-    (Let [Binding var' exp'] body') ->
-      getApp exp var body
-    _-> (Let [Binding var exp] body)
+toanflet (Let [Binding var (Let [Binding var' exp'] body')] body) =
+  getApp (Let [Binding var' exp'] body')  var body
 toanflet exp = exp
 getApp :: Exp -> Exp -> Exp -> Exp
 getApp (Application fn exps) var'' body = (Let [Binding var'' (Application fn exps)] body)
 getApp (Let [Binding var exp] (Let [Binding var' exp'] body')) var'' body =
   (Let [Binding var exp] (Let [Binding var' exp'] (getApp body' var'' body)))
-
+  
+getApp (Let [Binding var exp] (Prim op e e2)) var'' body =
+        (Let [Binding var exp] (Let [Binding var'' (Prim op e e2)] body))
+        
 getDefExp :: Exp -> Exp
 getDefExp (DefineProc var vars exp) = exp
 
