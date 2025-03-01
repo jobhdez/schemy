@@ -21,12 +21,12 @@ desugar (x:xs) =
     
 desugar' :: Exp -> Exp
 desugar' (Let bindings body) =
-  (Let bindings (desugar' body))
+  desugar' (Let bindings (desugar' body))
 
 desugar' (Letrec bindings body) =
   let namings = map (\x -> (Binding (Varexp (getVar x)) (Varexp (Var "#f")))) bindings in
     let sets = map (\x -> (Set (Varexp (getVar x))  (getExp x))) bindings in
-      (Let namings (desugar' (Begin (sets ++ [body]))))
+      desugar' (Let namings (Begin (sets ++ [body])))
 
 desugar' (Begin exps) =
   desugar' (makeLets exps)
@@ -34,7 +34,7 @@ desugar' (Begin exps) =
     makeLets :: [Exp] -> Exp
     makeLets [x] = x
     makeLets (x:xs) =
-      Let [(Binding (Varexp (Var "#f")) x)] e
+      desugar' Let [(Binding (Varexp (Var "#f")) x)] e
       where
         e = makeLets xs
      
@@ -60,7 +60,7 @@ desugar' (Cond exps) =
   cndToIfs exps 
 
 desugar' (Cons e e2) =
-  Tuple [e, desugar' e2]
+  (Cons (desugar' e) (desugar' e2))
 
 desugar' (ListExp (x:xs)) =
   Cons x  (desugar' (ListExp xs))

@@ -31,12 +31,15 @@ reveal (DefineProc var vars exp) =
 reveal (Lambda vars exp) =
   (Lambda vars (reveal exp))
 
+{---
 reveal (Let [Binding var exp] body) =
   (Let [Binding var (reveal exp)] (reveal body))
+---}
 
 reveal (Cons e e2) =
   Cons (reveal e) (reveal e2)
 
+{--
 reveal (Begin exps) =
   let rvs = map reveal exps in
     Begin rvs
@@ -44,8 +47,9 @@ reveal (Begin exps) =
 reveal (Cond cnds) =
   let rvlconds = revealCnds cnds in
     Cond rvlconds
+--}
 reveal x = x
-
+{---
 revealCnds :: [Cnd] -> [Cnd]
 revealCnds [] = []
 revealCnds (x:xs) =
@@ -54,6 +58,8 @@ revealCnds (x:xs) =
       [Cnd (reveal op) (reveal exp)] ++ revealCnds xs
     Else exp ->
       [Else (reveal exp)] ++ revealCnds xs
+--}
+
 toAnf :: [Exp] -> [Exp]
 toAnf [] = []
 toAnf (x:xs) =
@@ -82,10 +88,6 @@ toanf' (Prim op e e2) n =
     
 toanf' (If (Bool op) thn els) n =
   (If (Bool op) (toanf' thn (n+1)) (toanf' els (n+1)))
-    
-toanf' (If (Prim op e e2) thn els) n =
-  let tmp = "tmp_" ++ show n in
-    (Let [Binding (Varexp (Var tmp)) (Prim op e e2)] (If (Varexp (Var tmp)) (toanf' thn (n+1)) (toanf' els (n+1))))
 
 toanf' (If cnd thn els) n =
   let tmp = ("tmp_" ++ show n) in
@@ -98,6 +100,7 @@ toanf' (DefineProc var params exp) n =
 toanf' (Lambda vars exp) n =
   (Lambda vars (toanf' exp n))
 
+{---
 toanf' (Let [Binding v (Varexp (Var v2))] body) n =
         (Let [Binding v (Varexp (Var v2))] (toanflet (toanf' body n)))
 
@@ -115,7 +118,11 @@ toanf' (Let [Binding v (If cnd thn els)] body) n =
 
 toanf' (Let [Binding v exp] body) n =
   (Let [Binding v exp] (toanflet (toanf' body n)))
+--}
 
+toanf' (Set v exp) n =
+  (Set v (toanf' exp n))
+  
 toanf' (Cons e e2) n =
   let tmp = Varexp (Var ("tmp" ++ show n))
       tmp2 = Varexp (Var ("tmp" ++ show (n+1))) in
@@ -131,13 +138,16 @@ toanf' (Application op exps) n =
   let exps' = map (\x -> (toanf' x n)) exps in
     appToAnf (Application op exps') n []
 
+{--
 toanf' (Begin exps) n =
   let bgns = map (\x -> (toanf' x n)) exps in
     Begin bgns
-    
+
+
 toanf' (Cond exps) n =
   let cnds = toanfcnd exps n in
     Cond cnds
+---}
 toanf' x n = x
 toanfcnd :: [Cnd] -> Int -> [Cnd]
 toanfcnd [] n = []

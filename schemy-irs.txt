@@ -41,8 +41,10 @@ def := (define var exp)
        | (lambda (<var>*) <exp>)
        | (set <var> <exp>)
        | (if <exp> <exp> <exp>)
-       | (begin <exp>*)
+       | <prim>
        | (<exp> <exp>*)
+
+<prim> ::= + | < | = | > | cons | vector
 
 anf:
 ----

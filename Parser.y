@@ -176,7 +176,7 @@ data Binding = Binding Exp Exp
   deriving (Show, Eq)
 
   
-data Operator = Plus | Minus | And | Or | Less | Greater | Equal
+data Operator = Plus | Minus | And | Or | Less | Greater | Equal 
   deriving (Show, Eq)
 
 data Var = Var String
