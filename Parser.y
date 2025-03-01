@@ -31,7 +31,6 @@ import Data.Char (isSpace, isAlpha, isDigit, isAlphaNum)
     var            { TokenVar $$ }
     int            { TokenInt $$ }
     define         { TokenDefine }
-    closure        { TokenClosure }
     tuple          { TokenTuple }
     tupleref       { TokenTupleRef }
     cond           { TokenCond }
@@ -41,7 +40,7 @@ import Data.Char (isSpace, isAlpha, isDigit, isAlphaNum)
     list           { TokenList }
     car            { TokenCar }
     cdr             { TokenCdr }
-    funref          {TokenFunref }
+    case            { TokenCase }
 %%
 
 Program : Exps { $1 }
@@ -61,16 +60,15 @@ Exp : true { Bool True }
     | '(' letrec '(' bindings ')' Exp ')' { Letrec $4 $6 }
     | '(' macro Exp Exp ')' { SchemeMacro $3 $4 }
     | '(' define '(' Var params ')' Exp ')' { DefineProc $4 $5 $7 }
-| '(' define Var Exp ')'                { DefineExp $3 $4 }
-    |  '(' closure Exp Exp params ')' { Closure $3 $4 $5 }
+    | '(' define Var Exp ')'                { DefineExp $3 $4 }
     | '(' tuple tupleparams ')'                { Tuple $3 }
     | '(' tupleref Exp Exp ')'            { TupleRef $3 $4 }
     | '(' cond cndexps ')'                { Cond $3 }
     | '(' cons Exp Exp ')'                    { Cons $3 $4 }
     | '(' list tupleparams ')'            { ListExp $3 }
-    | '(' funref Var int ')'               { FunRef $3 $4 }
     | '(' cdr Exp ')'                         { Cdr $3 }
     | '(' car Exp ')'                     { Car $3 }
+    | '(' case Exp clauses ')'                { Case $3 $4 }
     | '(' Exp Exps ')'                    { Application $2 $3 }
 
 
@@ -112,6 +110,15 @@ cndexps : cndexp { [$1] }
 cndexp : '(' else Exp ')' { Else $3 }
        | '(' Exp Exp ')'  { Cnd $2 $3 }
 
+clauses : clause   { [$1] }
+        | clauses clause  { $1 ++ [$2] }
+
+clause : '(' '(' datums ')' Exp ')'  { Clause $3 $5 }
+
+datums : Exp { [$1] }
+       | datums Exp { $1 ++ [$2] }
+
+
 tupleparams : Exp {[$1]}
             | tupleparams Exp { $1 ++ [$2]}
 
@@ -134,7 +141,6 @@ data Exp =
     | Set Exp Exp
     | Begin [Exp]
     | Quote Exp
-    | Closure Exp Exp [Var]
     | DefineProc Var [Var] Exp
     | DefineExp Var Exp
     | Lambda [Var] Exp
@@ -146,7 +152,7 @@ data Exp =
     | Car Exp
     | Cdr Exp 
     | Cond [Cnd]
-    | FunRef Var Int
+    | Case Exp [Clauses]
     | Nil 
     | Application Exp [Exp]
   deriving (Show, Eq)
@@ -166,6 +172,10 @@ data Var = Var String
 data Cnd =
   Cnd Exp Exp
   | Else Exp
+  deriving (Show, Eq)
+
+data Clauses =
+  Clause [Exp] Exp
   deriving (Show, Eq)
   
 data Token =
@@ -188,7 +198,6 @@ data Token =
     | TokenTrue
     | TokenFalse
     | TokenAnd
-    | TokenClosure
     | TokenTuple
     | TokenTupleRef
     | TokenOr
@@ -200,7 +209,7 @@ data Token =
     | TokenList
     | TokenCons
     | TokenNil
-    | TokenFunref
+    | TokenCase
     | TokenVar String
     deriving (Show, Eq)
 
@@ -242,7 +251,6 @@ lexVar cs =
     ("true", rest)    -> TokenTrue : lexer rest
     ("false", rest)    -> TokenFalse : lexer rest
     ("define", rest)   -> TokenDefine : lexer rest
-    ("closure", rest)   -> TokenClosure : lexer rest
     ("tuple", rest)    -> TokenTuple : lexer rest
     ("tupleref", rest) -> TokenTupleRef : lexer rest
     ("cond", rest)       -> TokenCond : lexer rest
@@ -252,7 +260,7 @@ lexVar cs =
     ("car", rest)    -> TokenCar : lexer rest
     ("cdr", rest)    -> TokenCdr : lexer rest
     ("nil", rest)      -> TokenNil : lexer rest
-    ("funref", rest)   -> TokenFunref : lexer rest
+    ("case", rest)     -> TokenCase : lexer rest
     (var, rest)      -> TokenVar var : lexer rest
 
 main = getContents >>= print . toAst . lexer
