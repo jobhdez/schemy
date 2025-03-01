@@ -41,6 +41,9 @@ import Data.Char (isSpace, isAlpha, isDigit, isAlphaNum)
     car            { TokenCar }
     cdr             { TokenCdr }
     case            { TokenCase }
+when            { TokenWhen }
+unless          { TokenUnless }
+while           { TokenWhile }          
 %%
 
 Program : Exps { $1 }
@@ -69,6 +72,9 @@ Exp : true { Bool True }
     | '(' cdr Exp ')'                         { Cdr $3 }
     | '(' car Exp ')'                     { Car $3 }
     | '(' case Exp clauses ')'                { Case $3 $4 }
+    | '(' when Exp Exp ')'                { When $3 $4 }
+| '(' unless Exp Exp ')'                   { Unless $3 $4 }
+| '(' while Exp Exp ')'                   { While $3 $4 }
     | '(' Exp Exps ')'                    { Application $2 $3 }
 
 
@@ -85,6 +91,10 @@ Var : var { Var $1 }
     | car { Var "car" }
     | cdr { Var "cdr" }
     | cons { Var "cons" }
+    | case { Var "case" }
+    | when { Var "when" }
+    | unless { Var "unless" }
+    | while { Var "while" }
 
 Exps : Exp { [$1] }
      | Exp Exps { $1 : $2 }
@@ -153,7 +163,10 @@ data Exp =
     | Cdr Exp 
     | Cond [Cnd]
     | Case Exp [Clauses]
-    | Nil 
+    | Nil
+    | When Exp Exp
+    | Unless Exp Exp
+    | While Exp Exp
     | Application Exp [Exp]
   deriving (Show, Eq)
 
@@ -211,6 +224,9 @@ data Token =
     | TokenNil
     | TokenCase
     | TokenVar String
+    | TokenWhen
+    | TokenUnless
+    | TokenWhile
     deriving (Show, Eq)
 
 lexer :: String -> [Token]
@@ -261,6 +277,9 @@ lexVar cs =
     ("cdr", rest)    -> TokenCdr : lexer rest
     ("nil", rest)      -> TokenNil : lexer rest
     ("case", rest)     -> TokenCase : lexer rest
+    ("while", rest)     -> TokenWhile : lexer rest
+    ("when", rest)      -> TokenWhen : lexer rest
+    ("unless", rest)     -> TokenUnless : lexer rest
     (var, rest)      -> TokenVar var : lexer rest
 
 main = getContents >>= print . toAst . lexer

@@ -24,7 +24,7 @@ exp := variable
     | (quote <datum>)
     | (when exp exp1)
     | (unless exp exp1)
-    | (do ((exp exp exp) (<test> exp) exp))
+    | (while exp exp)
     | (eqv? exp exp)
     | (begin exp exp*)
 
