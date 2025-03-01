@@ -43,7 +43,9 @@ import Data.Char (isSpace, isAlpha, isDigit, isAlphaNum)
     case            { TokenCase }
 when            { TokenWhen }
 unless          { TokenUnless }
-while           { TokenWhile }          
+while           { TokenWhile }
+not             { TokenNot }
+funref          { Tokenfunref }
 %%
 
 Program : Exps { $1 }
@@ -53,9 +55,11 @@ Exp : true { Bool True }
     | nil { Nil }
     | int { Int $1 }
     | Var { Varexp $1 }
+    | '(' funref Var int ')' { FunRef $3 $4 }
     | prim { $1 }
     | '(' let '(' bindings ')' Exp ')' { Let $4 $6 }
-    | '(' if Exp Exp Exp ')' { If $3 $4 $5 }
+    | '(' if Exp Exp Exp ')' { If $3 $4 (Just $5) }
+    | '(' if Exp Exp ')'     { If $3 $4 Nothing }
     | '(' quote Exp ')' { Quote $3 }
     | '(' begin Exps ')' { Begin $3 }
     | '(' set Exp Exp ')' { Set $3 $4 }
@@ -64,17 +68,11 @@ Exp : true { Bool True }
     | '(' macro Exp Exp ')' { SchemeMacro $3 $4 }
     | '(' define '(' Var params ')' Exp ')' { DefineProc $4 $5 $7 }
     | '(' define Var Exp ')'                { DefineExp $3 $4 }
-    | '(' tuple tupleparams ')'                { Tuple $3 }
-    | '(' tupleref Exp Exp ')'            { TupleRef $3 $4 }
     | '(' cond cndexps ')'                { Cond $3 }
-    | '(' cons Exp Exp ')'                    { Cons $3 $4 }
-    | '(' list tupleparams ')'            { ListExp $3 }
-    | '(' cdr Exp ')'                         { Cdr $3 }
-    | '(' car Exp ')'                     { Car $3 }
     | '(' case Exp clauses ')'                { Case $3 $4 }
     | '(' when Exp Exp ')'                { When $3 $4 }
-| '(' unless Exp Exp ')'                   { Unless $3 $4 }
-| '(' while Exp Exp ')'                   { While $3 $4 }
+    | '(' unless Exp Exp ')'                   { Unless $3 $4 }
+    | '(' while Exp Exp ')'                   { While $3 $4 }
     | '(' Exp Exps ')'                    { Application $2 $3 }
 
 
@@ -95,6 +93,9 @@ Var : var { Var $1 }
     | when { Var "when" }
     | unless { Var "unless" }
     | while { Var "while" }
+    | not { Var "not" }
+
+Funref : Var int {FunRef $1 $2}
 
 Exps : Exp { [$1] }
      | Exp Exps { $1 : $2 }
@@ -106,6 +107,13 @@ prim : '(' '+' Exp Exp ')' { Prim Plus $3 $4 }
      | '(' or Exp Exp ')' { Prim Or $3 $4 }
      | '(' '<' Exp Exp ')' { Prim Less $3 $4 }
      | '(' '>' Exp Exp ')' { Prim Greater $3 $4 }
+     | '(' cdr Exp ')'     { Cdr $3 }
+     | '(' car Exp ')'     { Car $3 }
+     | '(' list tupleparams ')' { ListExp $3 }
+     | '(' cons Exp Exp ')'    { Cons $3 $4 }
+     | '(' tuple tupleparams ')'  { Tuple $3 }
+     | '(' tupleref Exp Exp ')'   { TupleRef $3 $4}
+     | '(' not Exp ')' { Not $3 }
 
 bindings : binding { [$1] }
          | bindings binding { $1 ++ [$2] }
@@ -139,17 +147,20 @@ params : Var { [$1] }
 
 parseError :: [Token] -> a
 parseError _ = error "Parse error"
+
   
 data Exp =
       Bool Bool
     | Varexp Var
+    | FunRef Var Int
     | Int Int
     | Prim Operator Exp Exp
     | Let [Binding] Exp
     | Letrec [Binding] Exp
-    | If Exp Exp Exp
+    | If Exp Exp (Maybe Exp)
     | Set Exp Exp
     | Begin [Exp]
+    | Not Exp
     | Quote Exp
     | DefineProc Var [Var] Exp
     | DefineExp Var Exp
@@ -174,7 +185,6 @@ data Exps = Exps [Exp]
   
 data Binding = Binding Exp Exp
   deriving (Show, Eq)
-
   
 data Operator = Plus | Minus | And | Or | Less | Greater | Equal 
   deriving (Show, Eq)
@@ -227,6 +237,8 @@ data Token =
     | TokenWhen
     | TokenUnless
     | TokenWhile
+    | TokenNot
+    | Tokenfunref
     deriving (Show, Eq)
 
 lexer :: String -> [Token]
@@ -280,6 +292,8 @@ lexVar cs =
     ("while", rest)     -> TokenWhile : lexer rest
     ("when", rest)      -> TokenWhen : lexer rest
     ("unless", rest)     -> TokenUnless : lexer rest
+    ("not", rest)       -> TokenNot : lexer rest
+    ("funref", rest)   -> Tokenfunref : lexer rest
     (var, rest)      -> TokenVar var : lexer rest
 
 main = getContents >>= print . toAst . lexer
