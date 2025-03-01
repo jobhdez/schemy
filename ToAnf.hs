@@ -2,12 +2,32 @@ module ToAnf where
 
 import Parser 
     ( Binding(Binding),
-      Exp(Application, Let, Prim, If, Varexp, Bool, DefineProc, Lambda, Int, Cons, Nil, FunRef, Quote, Begin, Set, Cond),
+      Exp(Application, Let, Prim, If, Varexp, Bool, DefineProc, Lambda, Int, Cons, Nil, Quote, Begin, Set, Cond),
       Var(Var),
       Operator(Plus),
       Cnd(Cnd, Else),
       lexer,
       toAst )
+
+
+ data AtomicExp =
+  AInt Int
+  | AVar String
+  | ABool Bool
+  | ALam [String] AnfExp
+  | AQuote AnfExp
+
+data ComplexExp =
+  CIf AtomicExp AnfExp AnfExp
+  | CApp [AtomicExp]
+  | CSet AtomicExp AnfExp
+
+data AnfExp =
+  ALet String ComplexExp AnfExp
+  | AE AtomicExp
+  | CE ComplexExp
+
+  
 
 revealFunctions :: [Exp] -> [Exp]
 revealFunctions [] = []
